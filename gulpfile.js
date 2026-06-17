@@ -67,13 +67,13 @@ gulp.task('assets', function () {
 	.pipe(gulp.dest('./dist/assets'));
 })
 
-gulp.task('cname', function () {
+gulp.task('pages-meta', function () {
 	return gulp
-		.src('./CNAME', { allowEmpty: true })
+		.src(['./CNAME', './.nojekyll'], { allowEmpty: true })
 		.pipe(gulp.dest('./dist'))
 })
 
-gulp.task('build', gulp.series('clean', 'assets', 'cname', 'pug', 'css', 'js', 'html'))
+gulp.task('build', gulp.series('clean', 'assets', 'pages-meta', 'pug', 'css', 'js', 'html'))
 gulp.task('default', gulp.series('build'))
 
 gulp.task('watch', function () {
