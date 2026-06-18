@@ -136,7 +136,7 @@
 									strong Paper List
 									span Zotero Planning
 						.academic-workspace
-							section.academic-section#daily-paper
+							section.academic-section#daily-paper(data-academic-panel="daily-paper")
 								.academic-section-head
 									div
 										p.section-eyebrow Daily Paper
@@ -149,7 +149,7 @@
 									span planning
 								.academic-paper-list(data-daily-paper-full)
 								p.empty-state(data-daily-paper-full-empty) Waiting for the first Daily Paper update.
-							section.academic-section#paper-list
+							section.academic-section#paper-list(data-academic-panel="paper-list")
 								.academic-section-head
 									div
 										p.section-eyebrow Zotero
@@ -189,15 +189,15 @@
 										.post-meta
 											span #{note.date || "Undated"}
 										span #{note.category || "Note"}
-									h3 #{note.title}
-									if note.excerpt
-										p #{note.excerpt}
-									else
-										p.muted Preserved Markdown note from the old site.
-									.post-footer
-										span.read-time #{readTime} min read
-										if note.tags && note.tags.length
-											span.tags-inline #{note.tags.slice(0, 2).join(" / ")}
+										h3 #{note.title}
+										if note.excerpt
+											p #{note.excerpt}
+										else
+											p.muted Preserved Markdown note from the old site.
+										.post-footer
+											span.read-time #{readTime} min read
+											if note.tags && note.tags.length
+												span.tags-inline #{note.tags.slice(0, 2).join(" / ")}
 									span.post-arrow(aria-hidden="true") >
 								button.note-archive-toggle(type="button" data-note-archive data-note-key=`${note.url}` hidden) Archive
 					p.empty-state#noteEmptyState(hidden) No matching notes.
@@ -217,6 +217,7 @@
 						.note-body(data-note-body)
 						section.note-comments
 							h2 Comments
+							p.comment-note GitHub Discussions comments. Markdown is supported after Giscus is installed for this repository.
 							.giscus-host(data-giscus-host)
 					aside.note-outline-panel
 						p.section-eyebrow Outline

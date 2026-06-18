@@ -1038,6 +1038,7 @@ const GISCUS_CONFIG = {
 	repoId: "R_kgDOS9Tb_g",
 	category: "General",
 	categoryId: "DIC_kwDOS9Tb_s4C_XG4",
+	installed: false,
 };
 
 const OWNER_STORAGE_KEY = "junle-homepage-owner-mode-v2";
@@ -1061,6 +1062,14 @@ function isNoteHash(hash) {
 
 function isAcademicHash(hash) {
 	return ["#papers", "#daily-paper", "#paper-list"].indexOf(hash || "") !== -1;
+}
+
+function getAcademicPanelName(hash) {
+	return hash === "#paper-list" ? "paper-list" : "daily-paper";
+}
+
+function getScrollTargetHash(hash) {
+	return isAcademicHash(hash) ? "#papers" : hash;
 }
 
 function getGiscusTheme() {
@@ -1328,6 +1337,14 @@ function bindContentFilters() {
 		} else {
 			clearAboutIntro(main);
 		}
+			const academicPanel = getAcademicPanelName(hash);
+			Array.prototype.slice
+				.call(document.querySelectorAll("[data-academic-panel]"))
+				.forEach((panel) => {
+					const active = panel.dataset.academicPanel === academicPanel;
+					panel.hidden = !active;
+					panel.classList.toggle("is-active", active);
+				});
 			Array.prototype.slice
 				.call(document.querySelectorAll(".topbar-nav a, .topbar-dropbtn"))
 				.forEach((item) => {
@@ -1344,7 +1361,7 @@ function bindContentFilters() {
 				.call(document.querySelectorAll("[data-academic-nav]"))
 				.forEach((item) => {
 					const href = item.getAttribute("href");
-					const active = href === hash || (hash === "#papers" && href === "#daily-paper");
+					const active = href === `#${academicPanel}`;
 					item.classList.toggle("is-active", active);
 				});
 	}
@@ -1361,6 +1378,7 @@ function bindLocalAnchors() {
 				if (!hash || hash === "#") {
 					return;
 				}
+				const isAcademicNav = link.hasAttribute("data-academic-nav");
 				event.preventDefault();
 				const wasLoaded = loadAll.loaded;
 				loadAll();
@@ -1368,7 +1386,9 @@ function bindLocalAnchors() {
 					introDelay: 0,
 				});
 				window.history.replaceState(null, "", hash);
-				setTimeout(() => scrollMainToHash(hash), 500);
+				if (!isAcademicNav) {
+					setTimeout(() => scrollMainToHash(getScrollTargetHash(hash)), 500);
+				}
 			});
 		});
 }
@@ -1389,7 +1409,7 @@ function bindLocalAnchors() {
 		setWorkspaceView(hash, {
 			introDelay: 0,
 		});
-		setTimeout(() => scrollMainToHash(hash), 1300);
+		setTimeout(() => scrollMainToHash(getScrollTargetHash(hash)), 1300);
 	}
 
 	function bindHashNavigation() {
@@ -1415,7 +1435,7 @@ function bindLocalAnchors() {
 			setWorkspaceView(hash, {
 				introDelay: 0,
 			});
-			setTimeout(() => scrollMainToHash(hash), 120);
+			setTimeout(() => scrollMainToHash(getScrollTargetHash(hash)), 120);
 		});
 	}
 
@@ -1619,6 +1639,7 @@ function bindGlassTopbar() {
 		let paragraph = [];
 		let list = null;
 		let codeBlock = null;
+		let tableRows = [];
 
 		function flushParagraph() {
 			if (!paragraph.length) {
@@ -1636,12 +1657,45 @@ function bindGlassTopbar() {
 			list = null;
 		}
 
+		function flushTable() {
+			if (!tableRows.length) {
+				return;
+			}
+			const rows = tableRows
+				.map((row) =>
+					row
+						.replace(/^\||\|$/g, "")
+						.split("|")
+						.map((cell) => cell.trim())
+				)
+				.filter((row) => row.length);
+			const isDivider = (row) => row.every((cell) => /^:?-{3,}:?$/.test(cell));
+			if (rows.length < 2 || !isDivider(rows[1])) {
+				rows.forEach((row) => {
+					html.push(`<p>${row.map((cell) => renderInlineMarkdown(cell, baseUrl)).join(" | ")}</p>`);
+				});
+				tableRows = [];
+				return;
+			}
+			const header = rows[0];
+			const bodyRows = rows.slice(2);
+			html.push(
+				`<table><thead><tr>${header
+					.map((cell) => `<th>${renderInlineMarkdown(cell, baseUrl)}</th>`)
+					.join("")}</tr></thead><tbody>${bodyRows
+					.map((row) => `<tr>${row.map((cell) => `<td>${renderInlineMarkdown(cell, baseUrl)}</td>`).join("")}</tr>`)
+					.join("")}</tbody></table>`
+			);
+			tableRows = [];
+		}
+
 		lines.forEach((rawLine) => {
 			const line = rawLine.replace(/\s+$/, "");
 			const fence = line.match(/^```(.*)$/);
 			if (fence) {
 				flushParagraph();
 				flushList();
+				flushTable();
 				if (codeBlock) {
 					html.push(`<pre><code>${escapeHtml(codeBlock.lines.join("\n"))}</code></pre>`);
 					codeBlock = null;
@@ -1657,8 +1711,16 @@ function bindGlassTopbar() {
 			if (!line.trim()) {
 				flushParagraph();
 				flushList();
+				flushTable();
 				return;
 			}
+			if (/^\|.+\|$/.test(line)) {
+				flushParagraph();
+				flushList();
+				tableRows.push(line);
+				return;
+			}
+			flushTable();
 			const heading = line.match(/^(#{1,4})\s+(.+)$/);
 			if (heading) {
 				flushParagraph();
@@ -1695,6 +1757,7 @@ function bindGlassTopbar() {
 
 		flushParagraph();
 		flushList();
+		flushTable();
 		if (codeBlock) {
 			html.push(`<pre><code>${escapeHtml(codeBlock.lines.join("\n"))}</code></pre>`);
 		}
@@ -1710,6 +1773,17 @@ function bindGlassTopbar() {
 			return;
 		}
 		host.innerHTML = "";
+		const setup = document.createElement("div");
+		setup.className = "giscus-setup-note";
+		setup.innerHTML = [
+			"<strong>Giscus comments need one GitHub setup step.</strong>",
+			"<span>Install the Giscus GitHub App on <code>junle-chen/HomePage</code>. Discussions and the General category are already configured. Comments support Markdown through GitHub Discussions. After installation, enable <code>GISCUS_CONFIG.installed</code>.</span>",
+			'<a href="https://github.com/apps/giscus" target="_blank" rel="noopener noreferrer">Install Giscus App</a>',
+		].join("");
+		host.appendChild(setup);
+		if (!GISCUS_CONFIG.installed) {
+			return;
+		}
 		const script = document.createElement("script");
 		script.src = "https://giscus.app/client.js";
 		script.async = true;
@@ -1726,6 +1800,12 @@ function bindGlassTopbar() {
 		script.setAttribute("data-input-position", "bottom");
 		script.setAttribute("data-theme", getGiscusTheme());
 		script.setAttribute("data-lang", "zh-CN");
+		script.addEventListener("load", () => {
+			setup.classList.add("is-loaded");
+		});
+		script.addEventListener("error", () => {
+			setup.classList.add("is-error");
+		});
 		host.appendChild(script);
 	}
 
@@ -2224,12 +2304,22 @@ function bindGlassTopbar() {
 
 		function getPaperInterpretation(paper) {
 			const brief = paper.brief || {};
-			if (brief.motivation || brief.method || brief.experiments || brief.research_help) {
+			const analysis = paper.analysis || {};
+			if (
+				analysis.motivation ||
+				analysis.method ||
+				analysis.experiments ||
+				analysis.research_help ||
+				brief.motivation ||
+				brief.method ||
+				brief.experiments ||
+				brief.research_help
+			) {
 				return {
-					"论文动机": brief.motivation || "自动化还没有写入动机解读。",
-					"方法": brief.method || "自动化还没有写入方法解读。",
-					"实验结果": brief.experiments || "自动化还没有写入实验结果解读。",
-					"对 research 的帮助": brief.research_help || "自动化还没有写入 research 帮助判断。",
+					"论文动机": analysis.motivation || brief.motivation || "自动化还没有写入动机解读。",
+					"方法": analysis.method || brief.method || "自动化还没有写入方法解读。",
+					"实验结果": analysis.experiments || brief.experiments || "自动化还没有写入实验结果解读。",
+					"对 research 的帮助": analysis.research_help || brief.research_help || "自动化还没有写入 research 帮助判断。",
 				};
 			}
 			const title = paper.title || "Untitled paper";
@@ -2247,10 +2337,10 @@ function bindGlassTopbar() {
 				? "动机是解决长程 agent 任务中的稀疏反馈、复杂交互或规划可靠性问题。"
 				: "动机是把当前方法推进到更接近真实 agent 工作流的任务设定。";
 			const method = methodSentence
-				? methodSentence
+				? "摘要显示方法包含新的 agent 框架、训练策略或评测协议；需要结合正文确认具体模块。"
 				: "方法需要进一步读正文确认；从标题和摘要看，核心是围绕 agent 训练、规划、工具使用或评测构建新的框架。";
 			const experiments = experimentSentence
-				? experimentSentence
+				? "摘要显示有实验或 benchmark 对比；精读时应检查 baseline、ablation、失败案例和统计口径。"
 				: "摘要没有给出明确实验数字；需要打开论文正文查看 benchmark、baseline 和 ablation。";
 			let researchHelp = "可作为 Daily Paper 候选，优先检查任务定义、评测协议、失败案例和可复现资源。";
 			if (/agentic|reinforcement|rl\b|reward|grpo/.test(source)) {
@@ -2503,6 +2593,89 @@ function bindGlassTopbar() {
 			row.appendChild(labelNode);
 			row.appendChild(links);
 			return row;
+		}
+
+		function createQuickFact(label, value) {
+			const item = document.createElement("div");
+			item.className = "paper-quickfact";
+			const labelNode = document.createElement("strong");
+			labelNode.textContent = label;
+			item.appendChild(labelNode);
+			if (value && value.nodeType) {
+				item.appendChild(value);
+			} else {
+				const text = document.createElement("span");
+				text.textContent = value || "待确认";
+				item.appendChild(text);
+			}
+			return item;
+		}
+
+		function createPaperLinks(paper) {
+			const links = document.createElement("div");
+			links.className = "paper-link-row";
+			const arxivUrl = (paper.url || "").replace(/^http:\/\//, "https://");
+			const repoUrl = getRepoUrl(paper);
+			if (arxivUrl) {
+				const link = document.createElement("a");
+				link.href = arxivUrl;
+				link.target = "_blank";
+				link.rel = "noopener noreferrer";
+				link.textContent = "arXiv";
+				links.appendChild(link);
+			}
+			if (repoUrl) {
+				const repo = document.createElement("a");
+				repo.href = repoUrl;
+				repo.target = "_blank";
+				repo.rel = "noopener noreferrer";
+				repo.textContent = "开源仓库";
+				links.appendChild(repo);
+			}
+			if (!links.children.length) {
+				const missing = document.createElement("span");
+				missing.textContent = "暂无链接";
+				links.appendChild(missing);
+			}
+			return links;
+		}
+
+		function createPaperFactLine(label, value) {
+			const row = document.createElement("div");
+			row.className = "paper-fact-line";
+			const labelNode = document.createElement("strong");
+			labelNode.textContent = label;
+			row.appendChild(labelNode);
+			if (value && value.nodeType) {
+				row.appendChild(value);
+			} else {
+				const text = document.createElement("span");
+				text.textContent = value || "待确认";
+				row.appendChild(text);
+			}
+			return row;
+		}
+
+		function createPaperFactsStrip(paper) {
+			const facts = document.createElement("div");
+			facts.className = "paper-facts-strip";
+			const repoUrl = getRepoUrl(paper);
+			facts.appendChild(createPaperFactLine("单位", getAffiliations(paper)));
+			facts.appendChild(createPaperFactLine("开源仓库", repoUrl || "未发现公开仓库"));
+			facts.appendChild(createPaperFactLine("贡献", getContribution(paper)));
+			facts.appendChild(createPaperFactLine("链接", createPaperLinks(paper)));
+			return facts;
+		}
+
+		function createQuickFacts(paper) {
+			const facts = document.createElement("div");
+			facts.className = "paper-quickfacts";
+			const repoUrl = getRepoUrl(paper);
+			facts.appendChild(createQuickFact("单位", getAffiliations(paper)));
+			facts.appendChild(createQuickFact("开源仓库", repoUrl || "未发现公开仓库"));
+			facts.appendChild(createQuickFact("贡献", getContribution(paper)));
+			facts.appendChild(createQuickFact("链接", createPaperLinks(paper)));
+			return facts;
 		}
 
 		function createInterpretationGrid(paper) {
@@ -2767,13 +2940,6 @@ function bindGlassTopbar() {
 				top.appendChild(titleWrap);
 				top.appendChild(actions);
 
-				const info = document.createElement("div");
-				info.className = "paper-info-grid";
-				info.appendChild(createInfoRow("单位", getAffiliations(paper)));
-				info.appendChild(createInfoRow("开源仓库", repoUrl || "未发现公开仓库"));
-				info.appendChild(createInfoRow("贡献", getContribution(paper), true));
-				info.appendChild(createLinksRow(paper));
-
 				const interpretation = createInterpretationGrid(paper);
 
 				const tags = document.createElement("div");
@@ -2785,7 +2951,7 @@ function bindGlassTopbar() {
 				});
 
 				card.appendChild(top);
-				card.appendChild(info);
+				card.appendChild(createPaperFactsStrip(paper));
 				card.appendChild(interpretation);
 				card.appendChild(tags);
 				fullList.appendChild(card);
@@ -2957,6 +3123,127 @@ function bindGlassTopbar() {
 			parent.appendChild(meta);
 		}
 
+		function firstSentence(text, pattern) {
+			const sentences = String(text || "")
+				.replace(/\s+/g, " ")
+				.split(/(?<=[.!?。！？])\s+/)
+				.filter(Boolean);
+			return sentences.find((sentence) => pattern.test(sentence)) || "";
+		}
+
+		function zoteroAnalysisFor(paper) {
+			if (paper.analysis) {
+				return {
+					"论文动机": paper.analysis.motivation || "需读正文确认动机。",
+					"方法": paper.analysis.method || "需读正文确认方法。",
+					"实验结果": paper.analysis.experiments || "需读正文确认实验结果。",
+					"对 research 的帮助": paper.analysis.research_help || paper.summary || "作为 Zotero Planning 候选，先检查任务设定和评测协议。",
+				};
+			}
+			const title = paper.title || "";
+			const abstract = paper.abstract || "";
+			const source = `${title} ${abstract} ${paper.reason || ""} ${(paper.collections || []).join(" ")}`.toLowerCase();
+			const motivation = /benchmark|evaluation|metric|dataset/.test(source)
+				? "动机是补足 agent planning / agent memory 的评测缺口，帮助定位模型在哪类多步任务中失败。"
+				: /constraint|solver|verification|backtracking/.test(source)
+					? "动机是让 LLM agent 的规划结果更可验证，减少约束违反、死循环或不可执行计划。"
+					: /multi[- ]?turn|interactive|dialog/.test(source)
+						? "动机是处理多轮交互里的状态延续、澄清和用户偏好变化。"
+						: "动机是提升 LLM agent 在复杂任务中的规划、执行或可靠性表现。";
+			const method = firstSentence(
+				abstract,
+				/\b(propose|introduce|present|framework|benchmark|dataset|method|model|agent|planner|evaluation)\b/i
+			) || paper.summary || "方法需要结合正文确认；当前 Zotero 元数据只支持粗粒度判断。";
+			const experiments = firstSentence(
+				abstract,
+				/\b(experiment|evaluate|benchmark|result|outperform|success|baseline|ablation|study)\b/i
+			) || "摘要或 Zotero 元数据未提供明确实验结果；需要打开论文正文检查 benchmark、baseline 和 ablation。";
+			const help = /benchmark|evaluation|dataset/.test(source)
+				? "可作为评测基线或任务设计参考，适合对齐你的 agent planning benchmark。"
+				: /long[- ]?horizon|planning|planner/.test(source)
+					? "适合补充 long-horizon planning 的任务分解、失败恢复和约束检查思路。"
+					: /memory|stateful|preference|personal/.test(source)
+						? "适合补充 agent memory、个性化状态和偏好延续相关实验。"
+						: "适合放在 Planning 文献池里做候选，优先看问题设定是否能服务当前 research。";
+			return {
+				"论文动机": motivation,
+				"方法": method,
+				"实验结果": experiments,
+				"对 research 的帮助": help,
+			};
+		}
+
+		function createZoteroLinks(paper) {
+			const links = document.createElement("div");
+			links.className = "paper-link-row";
+			if (paper.url) {
+				const source = document.createElement("a");
+				source.href = paper.url;
+				source.target = "_blank";
+				source.rel = "noopener noreferrer";
+				source.textContent = "论文链接";
+				links.appendChild(source);
+			}
+			if (paper.repo_url) {
+				const repo = document.createElement("a");
+				repo.href = paper.repo_url;
+				repo.target = "_blank";
+				repo.rel = "noopener noreferrer";
+				repo.textContent = "开源仓库";
+				links.appendChild(repo);
+			}
+			if (!links.children.length) {
+				const missing = document.createElement("span");
+				missing.textContent = "暂无链接";
+				links.appendChild(missing);
+			}
+			return links;
+		}
+
+		function createZoteroFactLine(label, value) {
+			const row = document.createElement("div");
+			row.className = "paper-fact-line";
+			const labelNode = document.createElement("strong");
+			labelNode.textContent = label;
+			row.appendChild(labelNode);
+			if (value && value.nodeType) {
+				row.appendChild(value);
+			} else {
+				const span = document.createElement("span");
+				span.textContent = compact(value || "待确认", 120);
+				row.appendChild(span);
+			}
+			return row;
+		}
+
+		function createZoteroFactsStrip(paper) {
+			const facts = document.createElement("div");
+			facts.className = "paper-facts-strip";
+			facts.appendChild(createZoteroFactLine("单位", paper.affiliations || "Zotero metadata 未提供；需读正文确认"));
+			facts.appendChild(createZoteroFactLine("开源仓库", paper.repo_url || "未发现公开仓库"));
+			facts.appendChild(createZoteroFactLine("贡献", paper.reason || paper.summary || "需读正文确认贡献"));
+			facts.appendChild(createZoteroFactLine("链接", createZoteroLinks(paper)));
+			return facts;
+		}
+
+		function createZoteroInterpretation(paper) {
+			const grid = document.createElement("div");
+			grid.className = "paper-interpretation-grid";
+			const analysis = zoteroAnalysisFor(paper);
+			Object.keys(analysis).forEach((label) => {
+				const item = document.createElement("section");
+				item.className = "paper-interpretation-item";
+				const heading = document.createElement("strong");
+				heading.textContent = label;
+				const body = document.createElement("p");
+				body.textContent = analysis[label];
+				item.appendChild(heading);
+				item.appendChild(body);
+				grid.appendChild(item);
+			});
+			return grid;
+		}
+
 		function renderItems(data) {
 			const items = Array.isArray(data.items) ? data.items : [];
 			list.innerHTML = "";
@@ -2982,6 +3269,7 @@ function bindGlassTopbar() {
 
 					appendMeta(card, [
 						paper.year || "年份待确认",
+						paper.level ? `价值 ${paper.level}` : "",
 						(paper.collections || []).slice(0, 2).join(" / "),
 					]);
 
@@ -2998,41 +3286,8 @@ function bindGlassTopbar() {
 					}
 					card.appendChild(title);
 
-					const level = document.createElement("div");
-					level.className = "paper-level";
-					const value = document.createElement("strong");
-					value.textContent = `价值：${paper.level || "中"}`;
-					const reason = document.createElement("span");
-					reason.textContent = paper.reason || "基于 Zotero 分类和题名的 Codex 静态分析。";
-					level.appendChild(value);
-					level.appendChild(reason);
-					card.appendChild(level);
-
-					const analysis = document.createElement("p");
-					analysis.textContent = compact(paper.summary || paper.takeaway || "待补充分析。", 180);
-					card.appendChild(analysis);
-
-					const links = document.createElement("div");
-					links.className = "paper-link-row";
-					if (paper.url) {
-						const source = document.createElement("a");
-						source.href = paper.url;
-						source.target = "_blank";
-						source.rel = "noopener noreferrer";
-						source.textContent = "论文链接";
-						links.appendChild(source);
-					}
-					if (paper.repo_url) {
-						const repo = document.createElement("a");
-						repo.href = paper.repo_url;
-						repo.target = "_blank";
-						repo.rel = "noopener noreferrer";
-						repo.textContent = "开源仓库";
-						links.appendChild(repo);
-					}
-					if (links.children.length) {
-						card.appendChild(links);
-					}
+					card.appendChild(createZoteroFactsStrip(paper));
+					card.appendChild(createZoteroInterpretation(paper));
 
 					list.appendChild(card);
 				});
