@@ -1301,7 +1301,7 @@ function bindContentFilters() {
 			clearAboutIntro.timer = window.setTimeout(() => {
 				main.classList.remove("about-intro-playing");
 				clearAboutIntro.timer = null;
-			}, 50);
+			}, 100);
 		};
 		if (delay > 0) {
 			clearAboutIntro.startTimer = window.setTimeout(startIntro, delay);
