@@ -373,6 +373,10 @@
 
 	.topbar-nav a,
 	.topbar-dropbtn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 7px;
 		min-height: 36px;
 		padding: 8px 12px;
 		border: 0;
@@ -404,14 +408,29 @@
 		display: inline-flex;
 	}
 
+	.dropdown-caret {
+		width: 8px;
+		height: 8px;
+		border-right: 2px solid currentColor;
+		border-bottom: 2px solid currentColor;
+		transform: rotate(45deg) translateY(-2px);
+		transition: transform 0.18s ease;
+	}
+
+	.topbar-dropdown:hover .dropdown-caret,
+	.topbar-dropdown:focus-within .dropdown-caret,
+	.topbar-dropdown.is-open .dropdown-caret {
+		transform: rotate(225deg) translateY(-2px);
+	}
+
 	.topbar-menu {
 		position: absolute;
-		top: calc(100% + 8px);
-		right: 0;
+		top: calc(100% + 10px);
+		left: 0;
 		z-index: 8;
 		display: none;
-		min-width: 190px;
-		padding: 8px;
+		min-width: 250px;
+		padding: 14px;
 		border: 1px solid var(--line);
 		border-radius: 8px;
 		background: rgba(29, 31, 33, 0.72);
@@ -432,8 +451,21 @@
 	}
 
 	.topbar-menu a {
-		display: block;
-		min-height: 36px;
+		display: flex;
+		align-items: center;
+		min-height: 54px;
+		padding: 12px 16px;
+		border-radius: 8px;
+		color: var(--muted);
+		font-size: 1rem;
+		font-weight: 700;
+	}
+
+	.topbar-menu a:hover,
+	.topbar-menu a:focus {
+		color: var(--text);
+		background: var(--card-bg);
+		outline: none;
 	}
 
 .topbar-actions {
@@ -528,7 +560,7 @@
 		background:
 			radial-gradient(circle at 50% 48%, rgba(255, 255, 255, 0.07), transparent 26%),
 			linear-gradient(135deg, #17191b, #101114 60%, #090a0d);
-		transition: opacity 0.2s ease;
+		transition: opacity 0.05s ease;
 	}
 
 	.content-main.about-intro-playing .about-intro-stage {
@@ -600,7 +632,7 @@
 		position: relative;
 		z-index: 1;
 		text-align: center;
-		animation: aboutIntroCopy 0.95s ease both;
+		animation: aboutIntroCopy 0.05s ease both;
 	}
 
 	.about-intro-copy h2 {
@@ -636,7 +668,7 @@
 	}
 
 	.content-main.view-about:not(.about-intro-playing) .about-profile {
-		animation: aboutProfileReveal 0.36s ease both;
+		animation: aboutProfileReveal 0.05s ease both;
 	}
 
 	@keyframes fluidDrift {
@@ -1864,10 +1896,44 @@
 
 .note-card-shell {
 	min-width: 0;
+	position: relative;
 }
 
 .note-card-shell.is-hidden {
 	display: none !important;
+}
+
+.note-archive-toggle {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	z-index: 2;
+	min-height: 30px;
+	padding: 6px 10px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: rgba(29, 31, 33, 0.7);
+	color: var(--text);
+	font: inherit;
+	font-size: 0.66rem;
+	font-weight: 800;
+	cursor: pointer;
+	box-shadow: 0 10px 26px var(--shadow);
+	backdrop-filter: blur(14px);
+	-webkit-backdrop-filter: blur(14px);
+}
+
+.content-main.theme-light .note-archive-toggle {
+	background: rgba(255, 255, 255, 0.82);
+}
+
+.note-archive-toggle:hover,
+.note-archive-toggle:focus,
+.note-archive-toggle.is-archived {
+	border-color: var(--accent);
+	color: var(--accent);
+	background: rgba(112, 214, 195, 0.18);
+	outline: none;
 }
 
 .post-feed.note-view-site {

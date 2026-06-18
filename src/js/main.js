@@ -1040,6 +1040,21 @@ const GISCUS_CONFIG = {
 	categoryId: "DIC_kwDOS9Tb_s4C_XG4",
 };
 
+const OWNER_STORAGE_KEY = "junle-homepage-owner-mode-v2";
+const NOTE_ARCHIVE_STORAGE_KEY = "junle-homepage-archived-notes-v1";
+
+function isOwnerModeEnabled() {
+	return window.localStorage.getItem(OWNER_STORAGE_KEY) === "true";
+}
+
+function emitOwnerModeChange(ownerMode) {
+	window.dispatchEvent(
+		new CustomEvent("junle-owner-mode-change", {
+			detail: { ownerMode },
+		})
+	);
+}
+
 function isNoteHash(hash) {
 	return /^#note-\d+$/.test(hash || "");
 }
@@ -1075,6 +1090,9 @@ function bindContentFilters() {
 	const filterButtons = Array.prototype.slice.call(
 		document.querySelectorAll("[data-filter-value]")
 	);
+	const archiveButtons = Array.prototype.slice.call(
+		document.querySelectorAll("[data-note-archive]")
+	);
 	const noteCountLabel = document.querySelector("[data-note-count]");
 	let activeFilter = "";
 
@@ -1100,10 +1118,46 @@ function bindContentFilters() {
 			.filter(Boolean);
 	}
 
+	function readArchivedNotes() {
+		try {
+			const value = JSON.parse(
+				window.localStorage.getItem(NOTE_ARCHIVE_STORAGE_KEY)
+			);
+			return Array.isArray(value) ? value : [];
+		} catch (error) {
+			return [];
+		}
+	}
+
+	function writeArchivedNotes(keys) {
+		window.localStorage.setItem(
+			NOTE_ARCHIVE_STORAGE_KEY,
+			JSON.stringify(keys)
+		);
+	}
+
+	function getNoteKey(card) {
+		return card.dataset.noteKey || card.dataset.noteUrl || card.dataset.noteId || "";
+	}
+
+	function isArchived(cardOrKey) {
+		const key =
+			typeof cardOrKey === "string" ? cardOrKey : getNoteKey(cardOrKey);
+		return key ? readArchivedNotes().indexOf(key) !== -1 : false;
+	}
+
 	function matches(card, query, filter) {
 		const haystack = getHaystack(card);
 		const matchesQuery = !query || haystack.indexOf(query) !== -1;
 		const normalizedFilter = String(filter || "").toLowerCase();
+		const archiveMode = normalizedFilter === "__archive";
+		const archived = isArchived(card);
+		if (archiveMode) {
+			return matchesQuery && archived;
+		}
+		if (archived) {
+			return false;
+		}
 		const category = String(card.dataset.category || "").toLowerCase();
 		const tags = getCardTags(card);
 		const matchesFilter =
@@ -1117,6 +1171,20 @@ function bindContentFilters() {
 		filterButtons.forEach((button) => {
 			const value = button.dataset.filterValue || "";
 			button.classList.toggle("is-active", value === activeFilter);
+		});
+	}
+
+	function updateArchiveButtons() {
+		const ownerMode = isOwnerModeEnabled();
+		archiveButtons.forEach((button) => {
+			const archived = isArchived(button.dataset.noteKey || "");
+			button.hidden = !ownerMode;
+			button.textContent = archived ? "Restore" : "Archive";
+			button.classList.toggle("is-archived", archived);
+			button.setAttribute(
+				"aria-label",
+				archived ? "Restore note from archive" : "Archive note"
+			);
 		});
 	}
 
@@ -1142,6 +1210,7 @@ function bindContentFilters() {
 			noteCountLabel.textContent = `Showing ${visible} of ${total} posts`;
 		}
 		updateFilterButtons();
+		updateArchiveButtons();
 	}
 
 	function setActiveFilter(value) {
@@ -1166,6 +1235,37 @@ function bindContentFilters() {
 			const value = button.dataset.filterValue || "";
 			setActiveFilter(value === activeFilter ? "" : value);
 		});
+	});
+	archiveButtons.forEach((button) => {
+		button.addEventListener("click", (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			if (!isOwnerModeEnabled()) {
+				return;
+			}
+			const key = button.dataset.noteKey || "";
+			if (!key) {
+				return;
+			}
+			const archived = readArchivedNotes();
+			const index = archived.indexOf(key);
+			if (index === -1) {
+				archived.push(key);
+			} else {
+				archived.splice(index, 1);
+			}
+			writeArchivedNotes(archived);
+			applyFilter();
+		});
+	});
+	window.addEventListener("junle-owner-mode-change", applyFilter);
+	window.addEventListener("storage", (event) => {
+		if (
+			event.key === OWNER_STORAGE_KEY ||
+			event.key === NOTE_ARCHIVE_STORAGE_KEY
+		) {
+			applyFilter();
+		}
 	});
 	applyFilter();
 }
@@ -1201,7 +1301,7 @@ function bindContentFilters() {
 			clearAboutIntro.timer = window.setTimeout(() => {
 				main.classList.remove("about-intro-playing");
 				clearAboutIntro.timer = null;
-			}, 950);
+			}, 50);
 		};
 		if (delay > 0) {
 			clearAboutIntro.startTimer = window.setTimeout(startIntro, delay);
@@ -1808,7 +1908,6 @@ function bindGlassTopbar() {
 		}
 
 		const STORAGE_KEY = "junle-homepage-memos";
-		const OWNER_STORAGE_KEY = "junle-homepage-owner-mode-v2";
 		const OWNER_KEY_HASH = "7e6918fc06fb5179e913a7e058e762d89ccf981b5ba9660f53a026e747e9092a";
 		const seedMemos = Array.prototype.slice
 			.call(document.querySelectorAll("[data-memo-card]"))
@@ -1948,6 +2047,7 @@ function bindGlassTopbar() {
 			if (datePreview) {
 				datePreview.textContent = formatDate(new Date());
 			}
+			emitOwnerModeChange(ownerMode);
 		}
 
 			ownerButton.addEventListener("click", () => {
