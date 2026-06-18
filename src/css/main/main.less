@@ -429,8 +429,8 @@
 		left: 0;
 		z-index: 8;
 		display: none;
-		min-width: 250px;
-		padding: 14px;
+		min-width: 210px;
+		padding: 8px;
 		border: 1px solid var(--line);
 		border-radius: 8px;
 		background: rgba(29, 31, 33, 0.72);
@@ -453,11 +453,11 @@
 	.topbar-menu a {
 		display: flex;
 		align-items: center;
-		min-height: 54px;
-		padding: 12px 16px;
+		min-height: 40px;
+		padding: 8px 12px;
 		border-radius: 8px;
 		color: var(--muted);
-		font-size: 1rem;
+		font-size: 0.84rem;
 		font-weight: 700;
 	}
 
@@ -1183,8 +1183,8 @@
 
 				.academic-board {
 					display: grid;
-					grid-template-columns: 230px minmax(0, 1fr);
-					gap: 18px;
+					grid-template-columns: minmax(0, 1fr);
+					gap: 14px;
 					align-items: start;
 				}
 
@@ -1197,8 +1197,7 @@
 			}
 
 			.academic-controls {
-				position: sticky;
-				top: 108px;
+				position: static;
 			}
 
 			.academic-control-card,
@@ -1225,9 +1224,14 @@
 				}
 
 				.academic-nav-card {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
 					background: rgba(29, 31, 33, 0.58);
 					backdrop-filter: blur(24px) saturate(1.35);
 					-webkit-backdrop-filter: blur(24px) saturate(1.35);
+				}
+
+				.academic-nav-card .sidebar-label {
+					grid-column: 1 / -1;
 				}
 
 				.content-main.theme-light .academic-nav-card {
@@ -1237,7 +1241,7 @@
 				.academic-nav-link {
 					display: grid;
 					gap: 4px;
-					min-height: 68px;
+					min-height: 54px;
 					padding: 12px 13px;
 					border: 1px solid var(--line);
 					border-radius: 8px;
@@ -1400,7 +1404,12 @@
 
 		.academic-paper-list {
 			display: grid;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
 			gap: 14px;
+		}
+
+		.zotero-paper-list {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
 		}
 
 		.paper-list-summary {
@@ -1435,8 +1444,9 @@
 
 			.academic-paper-card {
 				display: grid;
-				gap: 12px;
-				padding: 18px;
+				gap: 10px;
+				align-content: start;
+				padding: 14px;
 				border: 1px solid var(--line);
 				border-radius: 8px;
 				background: rgba(255, 255, 255, 0.045);
@@ -1479,9 +1489,13 @@
 		.academic-paper-card h3 {
 			margin: 0;
 			color: var(--text);
-			font-size: 1.18rem;
-			line-height: 1.35;
+			font-size: 1rem;
+			line-height: 1.28;
 			letter-spacing: 0;
+			display: -webkit-box;
+			overflow: hidden;
+			-webkit-box-orient: vertical;
+			-webkit-line-clamp: 4;
 		}
 
 		.academic-paper-card h3 a {
@@ -1526,9 +1540,8 @@
 		}
 
 		.paper-card-top {
-			display: flex;
-			justify-content: space-between;
-			gap: 14px;
+			display: grid;
+			gap: 12px;
 			align-items: flex-start;
 		}
 
@@ -1538,21 +1551,25 @@
 
 		.paper-card-actions {
 			display: flex;
-			flex: 0 0 auto;
 			flex-wrap: wrap;
-			justify-content: flex-end;
+			justify-content: flex-start;
 			gap: 8px;
 		}
 
 		.paper-interpretation-grid {
 			display: grid;
-			grid-template-columns: repeat(2, minmax(0, 1fr));
+			grid-template-columns: 1fr;
 			gap: 10px;
+		}
+
+		.academic-paper-card .paper-interpretation-grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 8px;
 		}
 
 		.paper-interpretation-item {
 			min-width: 0;
-			padding: 12px;
+			padding: 9px;
 			border: 1px solid var(--line);
 			border-radius: 8px;
 			background: rgba(255, 255, 255, 0.035);
@@ -1567,10 +1584,15 @@
 		}
 
 		.paper-interpretation-item p {
+			display: -webkit-box;
 			margin: 0;
+			overflow: hidden;
+			max-height: 4.95em;
 			color: var(--muted);
 			font-size: 0.82rem;
 			line-height: 1.65;
+			-webkit-box-orient: vertical;
+			-webkit-line-clamp: 3;
 		}
 
 		.daily-digest {
@@ -1739,6 +1761,10 @@
 			gap: 8px;
 		}
 
+		.academic-paper-card .paper-info-grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
 		.paper-info-row {
 			display: grid;
 			grid-template-columns: 88px minmax(0, 1fr);
@@ -1748,6 +1774,21 @@
 			border: 1px solid var(--line);
 			border-radius: 8px;
 			background: rgba(255, 255, 255, 0.035);
+		}
+
+		.academic-paper-card .paper-info-row {
+			grid-template-columns: 1fr;
+			gap: 5px;
+			padding: 7px 9px;
+		}
+
+		.academic-paper-card .paper-info-row span,
+		.academic-paper-card .paper-info-row p {
+			display: -webkit-box;
+			overflow: hidden;
+			max-height: 3.3em;
+			-webkit-box-orient: vertical;
+			-webkit-line-clamp: 2;
 		}
 
 		.paper-info-row strong {
@@ -2526,6 +2567,11 @@
 				grid-template-columns: repeat(2, minmax(0, 1fr));
 			}
 
+			.academic-paper-list,
+			.zotero-paper-list {
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+			}
+
 			.post-feed.note-view-site {
 				grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
@@ -2687,6 +2733,12 @@
 		}
 
 		.academic-controls {
+			grid-template-columns: 1fr;
+		}
+
+		.academic-nav-card,
+		.academic-paper-list,
+		.zotero-paper-list {
 			grid-template-columns: 1fr;
 		}
 

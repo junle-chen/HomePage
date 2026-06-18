@@ -2767,14 +2767,10 @@ function bindGlassTopbar() {
 				top.appendChild(titleWrap);
 				top.appendChild(actions);
 
-				const recommendation = createRecommendationPanel(paper);
-
 				const info = document.createElement("div");
 				info.className = "paper-info-grid";
-				info.appendChild(createInfoRow("作者", Array.isArray(paper.authors) ? paper.authors.join(", ") : "N/A", true));
 				info.appendChild(createInfoRow("单位", getAffiliations(paper)));
 				info.appendChild(createInfoRow("开源仓库", repoUrl || "未发现公开仓库"));
-				info.appendChild(createInfoRow("录用", paper.venue_status || (paper.brief && paper.brief.venue_status) || "未确认录用"));
 				info.appendChild(createInfoRow("贡献", getContribution(paper), true));
 				info.appendChild(createLinksRow(paper));
 
@@ -2789,7 +2785,6 @@ function bindGlassTopbar() {
 				});
 
 				card.appendChild(top);
-				card.appendChild(recommendation);
 				card.appendChild(info);
 				card.appendChild(interpretation);
 				card.appendChild(tags);

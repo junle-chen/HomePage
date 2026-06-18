@@ -12,7 +12,7 @@
 - const isExternal = href => /^(https?:|mailto:)/.test(href || '')
 - const profileLinks = navItems.filter(item => isExternal(item.href))
 - const externalResources = resources.filter(resource => /external/i.test(resource.type || ""))
-- const externalMenuItems = externalResources.concat(profileLinks.filter(item => isExternal(item.href)).map(item => ({ title: item.text, href: item.href })))
+- const externalMenuItems = externalResources
 - const paperRadarResources = resources.filter(resource => /paper radar|papers\.md/i.test([resource.type, resource.title, resource.description, resource.href].join(" ")))
 - const baseRailResources = resources.filter(resource => !/external|memo|workflow|paper radar|daily paper|papers\.md|daily-papers/i.test([resource.type, resource.title, resource.description, resource.href].join(" ")))
 - const railResources = baseRailResources
@@ -170,36 +170,36 @@
 							.note-view-toggle(aria-label="Note display mode")
 								button(type="button" data-note-view="site") Site
 								button(type="button" data-note-view="image") Image
-						if categories.length
-							.category-strip(aria-label="Note categories")
-								button(type="button" data-filter-value="") All
-								each category in categories
-									button(type="button" data-filter-value=`${category}`) #{category}
-								button(type="button" data-filter-value="__archive" data-archive-filter) Archive
-						.post-feed.note-view-image(data-note-feed)
-							each note, index in notes
-								- const image = cardImages[index % cardImages.length]
-								- const noteId = `note-${index}`
-								- const noteTags = (note.tags || []).join('|')
-								- const readTime = Math.max(3, Math.ceil((note.excerpt || note.title || '').length / 120))
-								article.note-card-shell(data-note-shell)
-									a.post-card.note-card(href=`#${noteId}` data-note-card data-note-open data-note-id=`${noteId}` data-note-key=`${note.url}` data-note-index=`${index}` data-note-url=`${note.url}` data-note-image=`${image}` data-comment-term=`note:${note.url}` data-title=`${note.title}` data-tags=`${noteTags}` data-category=`${note.category || ''}` data-date=`${note.date || ''}` data-excerpt=`${note.excerpt || ''}` data-read-time=`${readTime}` style=`--card-image: url("${image}")`)
-										.post-art(aria-hidden="true")
-										.post-content
-											.post-meta
-												span #{note.date || "Undated"}
-											span #{note.category || "Note"}
-										h3 #{note.title}
-										if note.excerpt
-											p #{note.excerpt}
-										else
-											p.muted Preserved Markdown note from the old site.
-										.post-footer
-											span.read-time #{readTime} min read
-											if note.tags && note.tags.length
-												span.tags-inline #{note.tags.slice(0, 2).join(" / ")}
-										span.post-arrow(aria-hidden="true") >
-									button.note-archive-toggle(type="button" data-note-archive data-note-key=`${note.url}` hidden) Archive
+					if categories.length
+						.category-strip(aria-label="Note categories")
+							button(type="button" data-filter-value="") All
+							each category in categories
+								button(type="button" data-filter-value=`${category}`) #{category}
+							button(type="button" data-filter-value="__archive" data-archive-filter) Archive
+					.post-feed.note-view-image(data-note-feed)
+						each note, index in notes
+							- const image = cardImages[index % cardImages.length]
+							- const noteId = `note-${index}`
+							- const noteTags = (note.tags || []).join('|')
+							- const readTime = Math.max(3, Math.ceil((note.excerpt || note.title || '').length / 120))
+							article.note-card-shell(data-note-shell)
+								a.post-card.note-card(href=`#${noteId}` data-note-card data-note-open data-note-id=`${noteId}` data-note-key=`${note.url}` data-note-index=`${index}` data-note-url=`${note.url}` data-note-image=`${image}` data-comment-term=`note:${note.url}` data-title=`${note.title}` data-tags=`${noteTags}` data-category=`${note.category || ''}` data-date=`${note.date || ''}` data-excerpt=`${note.excerpt || ''}` data-read-time=`${readTime}` style=`--card-image: url("${image}")`)
+									.post-art(aria-hidden="true")
+									.post-content
+										.post-meta
+											span #{note.date || "Undated"}
+										span #{note.category || "Note"}
+									h3 #{note.title}
+									if note.excerpt
+										p #{note.excerpt}
+									else
+										p.muted Preserved Markdown note from the old site.
+									.post-footer
+										span.read-time #{readTime} min read
+										if note.tags && note.tags.length
+											span.tags-inline #{note.tags.slice(0, 2).join(" / ")}
+									span.post-arrow(aria-hidden="true") >
+								button.note-archive-toggle(type="button" data-note-archive data-note-key=`${note.url}` hidden) Archive
 					p.empty-state#noteEmptyState(hidden) No matching notes.
 
 			section.note-reader#note-reader(data-note-reader hidden)
