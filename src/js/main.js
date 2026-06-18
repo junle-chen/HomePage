@@ -1228,19 +1228,26 @@ function bindContentFilters() {
 		} else {
 			clearAboutIntro(main);
 		}
-		Array.prototype.slice
-			.call(document.querySelectorAll(".topbar-nav a, .topbar-dropbtn"))
-			.forEach((item) => {
-				const href = item.getAttribute("href");
-				const section = item.dataset.navSection || "";
+			Array.prototype.slice
+				.call(document.querySelectorAll(".topbar-nav a, .topbar-dropbtn"))
+				.forEach((item) => {
+					const href = item.getAttribute("href");
+					const section = item.dataset.navSection || "";
 				const active =
 					href === hash ||
 					(section === "blog" && (hash === "#notes" || isNoteView)) ||
 					(section === "academic" && isAcademicView) ||
 					(section === "about" && isAboutView);
-				item.classList.toggle("is-active", active);
-			});
-}
+					item.classList.toggle("is-active", active);
+				});
+			Array.prototype.slice
+				.call(document.querySelectorAll("[data-academic-nav]"))
+				.forEach((item) => {
+					const href = item.getAttribute("href");
+					const active = href === hash || (hash === "#papers" && href === "#daily-paper");
+					item.classList.toggle("is-active", active);
+				});
+	}
 
 function bindLocalAnchors() {
 	Array.prototype.slice

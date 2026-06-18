@@ -46,11 +46,7 @@
 				.topbar-nav(aria-label="Primary sections")
 					a(href="#notes" data-nav-section="blog") Blog
 					a(href="#memos") Memo
-					.topbar-dropdown(data-topbar-dropdown)
-						button.topbar-dropbtn(type="button" aria-expanded="false" data-dropdown-toggle data-nav-section="academic") Academic
-						.topbar-menu
-							a(href="#daily-paper") Daily Paper
-							a(href="#paper-list") Paper List
+					a(href="#papers" data-nav-section="academic") Academic
 					.topbar-dropdown(data-topbar-dropdown)
 						button.topbar-dropbtn(type="button" aria-expanded="false" data-dropdown-toggle) External
 						.topbar-menu
@@ -127,28 +123,38 @@
 						h2 Academic
 						p Daily arXiv reading and Zotero Planning paper list.
 					.academic-board
-						section.academic-section#daily-paper
-							.academic-section-head
-								div
-									p.section-eyebrow Daily Paper
-									h3 Daily Paper
-									p 每日 arXiv agent paper 解读。
-							.topic-strip
-								span agentic rl
-								span multi-turn
-								span long-horizon
-								span planning
-							.academic-paper-list(data-daily-paper-full)
-							p.empty-state(data-daily-paper-full-empty) Waiting for the first Daily Paper update.
-						section.academic-section#paper-list
-							.academic-section-head
-								div
-									p.section-eyebrow Zotero
-									h3 Paper List
-									p Zotero Planning 论文整理。
-							.paper-list-summary(data-paper-list-summary)
-							.zotero-paper-list(data-zotero-paper-list)
-							p.empty-state(data-zotero-paper-empty) Waiting for Zotero paper list.
+						aside.academic-controls(aria-label="Academic sections")
+							.academic-control-card.academic-nav-card
+								p.sidebar-label Academic
+								a.academic-nav-link(href="#daily-paper" data-academic-nav)
+									strong Daily Paper
+									span 每日 arXiv 解读
+								a.academic-nav-link(href="#paper-list" data-academic-nav)
+									strong Paper List
+									span Zotero Planning
+						.academic-workspace
+							section.academic-section#daily-paper
+								.academic-section-head
+									div
+										p.section-eyebrow Daily Paper
+										h3 Daily Paper
+										p 每日 arXiv agent paper 解读。
+								.topic-strip
+									span agentic rl
+									span multi-turn
+									span long-horizon
+									span planning
+								.academic-paper-list(data-daily-paper-full)
+								p.empty-state(data-daily-paper-full-empty) Waiting for the first Daily Paper update.
+							section.academic-section#paper-list
+								.academic-section-head
+									div
+										p.section-eyebrow Zotero
+										h3 Paper List
+										p Zotero Planning 论文整理。
+								.paper-list-summary(data-paper-list-summary)
+								.zotero-paper-list(data-zotero-paper-list)
+								p.empty-state(data-zotero-paper-empty) Waiting for Zotero paper list.
 
 			section.blog-layout#notes
 				div.feed-column
