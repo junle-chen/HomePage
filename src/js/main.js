@@ -2272,6 +2272,7 @@ function bindGlassTopbar() {
 		const dateClear = document.querySelector("[data-paper-date-clear]");
 		const dateList = document.querySelector("[data-paper-date-list]");
 		const sortButtons = Array.prototype.slice.call(document.querySelectorAll("[data-paper-sort]"));
+		const dailyFilterBar = document.querySelector("[data-daily-paper-filter-bar]");
 		const digestBox = document.querySelector("[data-daily-digest]");
 		const digestCopy = document.querySelector("[data-digest-copy]");
 		const digestStatus = document.querySelector("[data-digest-status]");
@@ -2303,9 +2304,12 @@ function bindGlassTopbar() {
 		}
 
 		const SORT_STORAGE_KEY = "junle-homepage-daily-paper-sort";
+		const DAILY_STAR_STORAGE_KEY = "junle-homepage-daily-paper-stars";
 		let allItems = [];
 		let selectedDate = "";
+		let selectedCategory = "";
 		let sortOrder = window.localStorage.getItem(SORT_STORAGE_KEY) || "desc";
+		let starredDailyKeys = loadDailyStarredKeys();
 		let currentDigestText = "";
 		let currentModalItems = [];
 		let currentModalIndex = -1;
@@ -2366,6 +2370,37 @@ function bindGlassTopbar() {
 
 		function getPaperKey(paper) {
 			return paper.id || paper.url || paper.title || "paper";
+		}
+
+		function loadDailyStarredKeys() {
+			try {
+				const value = JSON.parse(window.localStorage.getItem(DAILY_STAR_STORAGE_KEY) || "[]");
+				return Array.isArray(value) ? value : [];
+			} catch (error) {
+				return [];
+			}
+		}
+
+		function saveDailyStarredKeys() {
+			try {
+				window.localStorage.setItem(DAILY_STAR_STORAGE_KEY, JSON.stringify(starredDailyKeys));
+			} catch (error) {
+				// Star state is a local reading aid; rendering should continue without storage.
+			}
+		}
+
+		function isDailyStarred(paper) {
+			return starredDailyKeys.indexOf(getPaperKey(paper)) !== -1;
+		}
+
+		function toggleDailyStar(paper) {
+			const key = getPaperKey(paper);
+			if (starredDailyKeys.indexOf(key) === -1) {
+				starredDailyKeys = starredDailyKeys.concat(key);
+			} else {
+				starredDailyKeys = starredDailyKeys.filter((value) => value !== key);
+			}
+			saveDailyStarredKeys();
 		}
 
 		function compactText(text, maxLength = 260) {
@@ -2624,10 +2659,14 @@ function bindGlassTopbar() {
 			openPaperModal(currentModalItems[nextIndex], nextIndex, total);
 		}
 
-		function openPaperModal(paper, index, total) {
+		function openPaperModal(paper, index, total, items) {
 			if (!modal) {
 				return;
 			}
+			if (Array.isArray(items)) {
+				currentModalItems = items;
+			}
+			const modalTotal = total || currentModalItems.length || 1;
 			currentModalIndex = index;
 			const interpretation = getPaperInterpretation(paper);
 			const authors = formatAuthors(paper.authors || (paper.brief && paper.brief.authors));
@@ -2656,7 +2695,7 @@ function bindGlassTopbar() {
 				modalIndex.textContent = String(index + 1);
 			}
 			if (modalPosition) {
-				modalPosition.textContent = `${index + 1} / ${total}`;
+				modalPosition.textContent = `${index + 1} / ${modalTotal}`;
 			}
 			if (modalGrid) {
 				modalGrid.innerHTML = "";
@@ -2689,7 +2728,7 @@ function bindGlassTopbar() {
 			modal.hidden = false;
 			modal.classList.add("is-open");
 			modal.dataset.paperKey = getPaperKey(paper);
-			syncModalNavigation(total);
+			syncModalNavigation(modalTotal);
 			document.body.classList.add("paper-modal-open");
 			const closeButton = modal.querySelector(".paper-modal-close");
 			if (closeButton) {
@@ -2698,28 +2737,41 @@ function bindGlassTopbar() {
 		}
 
 		function getPaperTags(paper) {
-			const source = [
+			const rawSource = [
 				paper.title || "",
 				paper.summary || "",
+				paper.brief && paper.brief.summary,
 				(paper.categories || []).join(" "),
 			].join(" ").toLowerCase();
-			const tags = [];
-			if (/agentic|agent/.test(source)) {
-				tags.push("agent");
+			const isOffTopicDomain = /antimicrobial|peptide|wireless network|low-altitude|vector database|sponsored search|ad description|autonomous driving/.test(rawSource);
+			if (isOffTopicDomain) {
+				return [];
 			}
-			if (/reinforcement|rl\b/.test(source)) {
+			const llmOrAgentContext = /llm|large language model|language model|coding agent|research agent|agentic large language|openclaw|qwen|webshop|alfworld|grpo|rloo/.test(rawSource);
+			const tags = [];
+			if (/agentic reinforcement learning|agentic rl|llm policy optimization|policy optimization|grpo|rloo|hindsight-informed memory policy optimization/.test(rawSource)) {
 				tags.push("agentic rl");
 			}
-			if (/multi[- ]?turn|dialog|interaction/.test(source)) {
+			if (/multi[- ]turn|turn-level|interactive replanning|multi-round/.test(rawSource) && llmOrAgentContext) {
 				tags.push("multi-turn");
 			}
-			if (/long[- ]?horizon|planning|planner|plan/.test(source)) {
-				tags.push("long-horizon planning");
+			if (/long[- ]horizon|multi[- ]step|multi-step reasoning/.test(rawSource) && llmOrAgentContext) {
+				tags.push("long horizon");
 			}
-			if (/memory|stateful|preference/.test(source)) {
-				tags.push("agent memory");
+			if (
+				/agent planning|planning agent|llm planning|multi-agent llm planning|joint plan tensor|coding agent|research agents?|tool use|skill tree search|skill construction|orchestrat\w*.*llm|expert llms/.test(rawSource)
+			) {
+				tags.push("agent planning");
 			}
-			return (paper.categories || []).slice(0, 3).concat(tags).slice(0, 6);
+			return tags.filter((tag, index) => tags.indexOf(tag) === index);
+		}
+
+		function isDailyPaperRelevant(paper) {
+			return getPaperTags(paper).length > 0;
+		}
+
+		function getRelevantDailyItems() {
+			return allItems.filter(isDailyPaperRelevant);
 		}
 
 		function getContribution(paper) {
@@ -2814,10 +2866,33 @@ function bindGlassTopbar() {
 			});
 		}
 
+		function normalizeFilterValue(value) {
+			return String(value || "").trim().toLowerCase();
+		}
+
+		function paperInDailyCategory(paper, category) {
+			if (!category) {
+				return true;
+			}
+			if (category === "__starred") {
+				return isDailyStarred(paper);
+			}
+			const normalized = normalizeFilterValue(category);
+			return getPaperTags(paper).some((tag) => normalizeFilterValue(tag) === normalized);
+		}
+
+		function getDateFilteredItems() {
+			return getRelevantDailyItems().filter((paper) => !selectedDate || getPaperDate(paper) === selectedDate);
+		}
+
 		function getFilteredItems() {
-			return allItems
-				.filter((paper) => !selectedDate || getPaperDate(paper) === selectedDate)
+			return getDateFilteredItems()
+				.filter((paper) => paperInDailyCategory(paper, selectedCategory))
 				.sort((a, b) => {
+					const starCompare = Number(isDailyStarred(b)) - Number(isDailyStarred(a));
+					if (starCompare !== 0) {
+						return starCompare;
+					}
 					const dateCompare = String(getPaperDate(a)).localeCompare(String(getPaperDate(b)));
 					if (dateCompare !== 0) {
 						return sortOrder === "asc" ? dateCompare : -dateCompare;
@@ -2826,12 +2901,44 @@ function bindGlassTopbar() {
 				});
 		}
 
+		function renderDailyFilters() {
+			if (!dailyFilterBar) {
+				return;
+			}
+			const sourceItems = getDateFilteredItems();
+			const counts = new Map();
+			sourceItems.forEach((paper) => {
+				getPaperTags(paper).forEach((tag) => {
+					counts.set(tag, (counts.get(tag) || 0) + 1);
+				});
+			});
+			const options = [
+				{ name: "", label: "All", count: sourceItems.length },
+				{ name: "__starred", label: "Star", count: sourceItems.filter(isDailyStarred).length },
+				...Array.from(counts.entries())
+					.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+					.map(([name, count]) => ({ name, label: name, count })),
+			];
+			if (selectedCategory && !options.some((option) => option.name === selectedCategory)) {
+				selectedCategory = "";
+			}
+			dailyFilterBar.innerHTML = "";
+			options.forEach((option) => {
+				const button = document.createElement("button");
+				button.type = "button";
+				button.dataset.dailyPaperFilter = option.name;
+				button.classList.toggle("is-active", option.name === selectedCategory);
+				button.textContent = `${option.label} ${option.count}`;
+				dailyFilterBar.appendChild(button);
+			});
+		}
+
 		function renderDateList() {
 			if (!dateList) {
 				return;
 			}
 			const counts = {};
-			allItems.forEach((paper) => {
+			getRelevantDailyItems().forEach((paper) => {
 				const date = getPaperDate(paper);
 				if (date) {
 					counts[date] = (counts[date] || 0) + 1;
@@ -3120,20 +3227,18 @@ function bindGlassTopbar() {
 		}
 
 		function buildDigestText(data) {
-			if (data.digest && data.digest.email_body) {
-				return data.digest.email_body;
-			}
 			const date = data.digest && data.digest.report_date
 				? data.digest.report_date
 				: new Date(data.updated_at || Date.now()).toISOString().slice(0, 10);
-			const top = allItems
+			const relevantItems = getRelevantDailyItems();
+			const top = relevantItems
 				.slice()
 				.sort((a, b) => getRecommendation(b).score - getRecommendation(a).score)
 				.slice(0, 3);
 			return [
 				`${date} Daily Paper`,
 				"",
-				`今日自动化筛选 ${allItems.length} 篇候选，重点关注 agentic RL、multi-turn、long-horizon planning、agent memory 和 planning reliability。`,
+				`今日保留 ${relevantItems.length} 篇候选，重点关注 long horizon、multi-turn、agentic rl 和 agent planning。`,
 				"",
 				"最值得读的 3 篇",
 				...top.map((paper, index) => {
@@ -3195,12 +3300,13 @@ function bindGlassTopbar() {
 			const digest = data.digest || {};
 			const topIds = Array.isArray(digest.top_recommendations) ? digest.top_recommendations : [];
 			const lowIds = Array.isArray(digest.low_priority) ? digest.low_priority : [];
+			const relevantItems = getRelevantDailyItems();
 			const topPapers = topIds.length
-				? topIds.map(getPaperById).filter(Boolean)
-				: allItems.slice().sort((a, b) => getRecommendation(b).score - getRecommendation(a).score).slice(0, 3);
+				? topIds.map(getPaperById).filter((paper) => paper && isDailyPaperRelevant(paper))
+				: relevantItems.slice().sort((a, b) => getRecommendation(b).score - getRecommendation(a).score).slice(0, 3);
 			const lowPapers = lowIds.length
-				? lowIds.map(getPaperById).filter(Boolean)
-				: allItems.filter((paper) => getRecommendation(paper).waterRisk !== "低").slice(0, 3);
+				? lowIds.map(getPaperById).filter((paper) => paper && isDailyPaperRelevant(paper))
+				: relevantItems.filter((paper) => getRecommendation(paper).waterRisk !== "低").slice(0, 3);
 
 			digestBox.innerHTML = "";
 			digestBox.hidden = false;
@@ -3210,14 +3316,14 @@ function bindGlassTopbar() {
 			const title = document.createElement("h4");
 			title.textContent = digest.title || "Daily Paper 自动化摘要";
 			const summary = document.createElement("p");
-			summary.textContent = digest.summary || "今日自动化已生成论文初筛和阅读建议。";
+			summary.textContent = `当前只显示 long horizon、multi-turn、agentic rl 和 agent planning 相关论文，共 ${relevantItems.length} 篇。`;
 			heading.appendChild(title);
 			heading.appendChild(summary);
 			digestBox.appendChild(heading);
 
 			const meta = document.createElement("div");
 			meta.className = "digest-meta-row";
-			[digest.focus || data.query_focus, digest.no_news_policy].filter(Boolean).forEach((value) => {
+			["long horizon", "multi-turn", "agentic rl", "agent planning"].forEach((value) => {
 				const span = document.createElement("span");
 				span.textContent = value;
 				meta.appendChild(span);
@@ -3263,6 +3369,7 @@ function bindGlassTopbar() {
 			const items = getFilteredItems();
 			currentModalItems = items;
 			fullList.innerHTML = "";
+			renderDailyFilters();
 			setEmpty(
 				fullEmpty,
 				"当前日期没有 Daily Paper。",
@@ -3294,6 +3401,19 @@ function bindGlassTopbar() {
 
 				const actions = document.createElement("div");
 				actions.className = "paper-card-actions";
+				const starButton = document.createElement("button");
+				starButton.type = "button";
+				starButton.className = "paper-star-button";
+				starButton.classList.toggle("is-starred", isDailyStarred(paper));
+				starButton.setAttribute("aria-pressed", isDailyStarred(paper) ? "true" : "false");
+				starButton.setAttribute("aria-label", isDailyStarred(paper) ? "Unstar daily paper" : "Star daily paper");
+				starButton.textContent = isDailyStarred(paper) ? "★" : "☆";
+				starButton.addEventListener("click", (event) => {
+					event.preventDefault();
+					event.stopPropagation();
+					toggleDailyStar(paper);
+					renderFull();
+				});
 				const detailButton = document.createElement("button");
 				detailButton.type = "button";
 				detailButton.className = "paper-detail-trigger";
@@ -3301,6 +3421,7 @@ function bindGlassTopbar() {
 				detailButton.addEventListener("click", () => {
 					openPaperModal(paper, index, items.length);
 				});
+				actions.appendChild(starButton);
 				actions.appendChild(detailButton);
 				top.appendChild(titleWrap);
 				top.appendChild(actions);
@@ -3366,6 +3487,7 @@ function bindGlassTopbar() {
 		if (dateInput) {
 			dateInput.addEventListener("change", () => {
 				selectedDate = dateInput.value;
+				selectedCategory = "";
 				renderFull();
 			});
 		}
@@ -3373,6 +3495,7 @@ function bindGlassTopbar() {
 		if (dateClear) {
 			dateClear.addEventListener("click", () => {
 				selectedDate = "";
+				selectedCategory = "";
 				if (dateInput) {
 					dateInput.value = "";
 				}
@@ -3387,6 +3510,7 @@ function bindGlassTopbar() {
 					return;
 				}
 				selectedDate = button.dataset.paperDateButton;
+				selectedCategory = "";
 				if (dateInput) {
 					dateInput.value = selectedDate;
 				}
@@ -3401,6 +3525,20 @@ function bindGlassTopbar() {
 				renderFull();
 			});
 		});
+
+		if (dailyFilterBar) {
+			dailyFilterBar.addEventListener("click", (event) => {
+				const button = event.target.closest("[data-daily-paper-filter]");
+				if (!button) {
+					return;
+				}
+				const value = button.dataset.dailyPaperFilter || "";
+				selectedCategory = value === selectedCategory ? "" : value;
+				renderFull();
+			});
+		}
+
+		window.openAcademicPaperModal = openPaperModal;
 
 		modalCloseButtons.forEach((button) => {
 			button.addEventListener("click", closePaperModal);
@@ -3433,17 +3571,18 @@ function bindGlassTopbar() {
 			.then((data) => {
 				const items = data.items || [];
 				allItems = items.slice();
+				const relevantItems = getRelevantDailyItems();
 				currentDigestText = buildDigestText(data);
 				setUpdatedLabel(data);
-				if (!items.length) {
-					renderEmptyState("Waiting for the first arXiv update.");
+				if (!relevantItems.length) {
+					renderEmptyState("没有符合 long horizon / multi-turn / agentic rl / agent planning 的 Daily Paper。");
 					renderDigest(data);
 					return;
 				}
 				setEmpty(empty, "", true);
 				setEmpty(fullEmpty, "", true);
 				renderDigest(data);
-				renderRail(items);
+				renderRail(relevantItems);
 				renderFull();
 			})
 			.catch(() => {
@@ -3463,6 +3602,8 @@ function bindGlassTopbar() {
 		let allItems = [];
 		let groups = [];
 		let selectedCollection = "";
+		const STAR_STORAGE_KEY = "junle-homepage-zotero-paper-stars";
+		let starredKeys = loadStarredKeys();
 
 		function compact(text, maxLength) {
 			const value = String(text || "").replace(/\s+/g, " ").trim();
@@ -3472,10 +3613,39 @@ function bindGlassTopbar() {
 			return value.slice(0, maxLength - 1).trim() + "...";
 		}
 
-		function levelRank(level) {
-			if (level === "高") return 0;
-			if (level === "中") return 1;
-			return 2;
+		function loadStarredKeys() {
+			try {
+				const value = JSON.parse(window.localStorage.getItem(STAR_STORAGE_KEY) || "[]");
+				return Array.isArray(value) ? value : [];
+			} catch (error) {
+				return [];
+			}
+		}
+
+		function saveStarredKeys() {
+			try {
+				window.localStorage.setItem(STAR_STORAGE_KEY, JSON.stringify(starredKeys));
+			} catch (error) {
+				// Local star state is a convenience feature; rendering should not depend on storage.
+			}
+		}
+
+		function getZoteroKey(paper) {
+			return paper.zotero_key || paper.url || paper.title || "zotero-paper";
+		}
+
+		function isStarred(paper) {
+			return starredKeys.indexOf(getZoteroKey(paper)) !== -1;
+		}
+
+		function toggleStar(paper) {
+			const key = getZoteroKey(paper);
+			if (starredKeys.indexOf(key) === -1) {
+				starredKeys = starredKeys.concat(key);
+			} else {
+				starredKeys = starredKeys.filter((value) => value !== key);
+			}
+			saveStarredKeys();
 		}
 
 		function setEmpty(message, hidden) {
@@ -3497,16 +3667,26 @@ function bindGlassTopbar() {
 			summaryNode.appendChild(total);
 			if (selectedCollection) {
 				const active = document.createElement("span");
-				active.textContent = selectedCollection;
+				active.textContent = selectedCollection === "__starred" ? "Starred" : selectedCollection;
 				summaryNode.appendChild(active);
 			}
+		}
+
+		function getZoteroCollections(paper) {
+			return []
+				.concat(paper.collections || [])
+				.concat(paper.collection_shorts || [])
+				.filter(Boolean);
 		}
 
 		function paperInCollection(paper, collectionName) {
 			if (!collectionName) {
 				return true;
 			}
-			return (paper.collections || []).indexOf(collectionName) !== -1;
+			if (collectionName === "__starred") {
+				return isStarred(paper);
+			}
+			return getZoteroCollections(paper).indexOf(collectionName) !== -1;
 		}
 
 		function getVisibleItems() {
@@ -3520,6 +3700,7 @@ function bindGlassTopbar() {
 			filterBar.innerHTML = "";
 			const options = [
 				{ name: "", label: "All", count: allItems.length },
+				{ name: "__starred", label: "Star", count: allItems.filter(isStarred).length },
 				...groups
 					.filter((group) => group.count)
 					.map((group) => ({
@@ -3599,82 +3780,71 @@ function bindGlassTopbar() {
 			};
 		}
 
-		function createZoteroLinks(paper) {
-			const links = document.createElement("div");
-			links.className = "paper-link-row";
-			if (paper.url) {
-				const source = document.createElement("a");
-				source.href = paper.url;
-				source.target = "_blank";
-				source.rel = "noopener noreferrer";
-				source.textContent = "论文链接";
-				links.appendChild(source);
-			}
-			if (paper.repo_url) {
-				const repo = document.createElement("a");
-				repo.href = paper.repo_url;
-				repo.target = "_blank";
-				repo.rel = "noopener noreferrer";
-				repo.textContent = "开源仓库";
-				links.appendChild(repo);
-			}
-			if (!links.children.length) {
-				const missing = document.createElement("span");
-				missing.textContent = "暂无链接";
-				links.appendChild(missing);
-			}
-			return links;
+		function getZoteroTags(paper) {
+			const tags = (paper.collection_shorts && paper.collection_shorts.length)
+				? paper.collection_shorts
+				: getZoteroCollections(paper);
+			return tags.slice(0, 6);
 		}
 
-		function createZoteroFactLine(label, value) {
-			const row = document.createElement("div");
-			row.className = "paper-fact-line";
-			const labelNode = document.createElement("strong");
-			labelNode.textContent = label;
-			row.appendChild(labelNode);
-			if (value && value.nodeType) {
-				row.appendChild(value);
-			} else {
-				const span = document.createElement("span");
-				span.textContent = compact(value || "待确认", 120);
-				row.appendChild(span);
-			}
-			return row;
-		}
-
-		function createZoteroFactsStrip(paper) {
-			const facts = document.createElement("div");
-			facts.className = "paper-facts-strip";
-			facts.appendChild(createZoteroFactLine("单位", paper.affiliations || "Zotero metadata 未提供；需读正文确认"));
-			facts.appendChild(createZoteroFactLine("开源仓库", paper.repo_url || "未发现公开仓库"));
-			facts.appendChild(createZoteroFactLine("贡献", paper.reason || paper.summary || "需读正文确认贡献"));
-			facts.appendChild(createZoteroFactLine("链接", createZoteroLinks(paper)));
-			return facts;
-		}
-
-		function createZoteroInterpretation(paper) {
-			const grid = document.createElement("div");
-			grid.className = "paper-interpretation-grid";
+		function getZoteroCardSummary(paper) {
 			const analysis = zoteroAnalysisFor(paper);
-			Object.keys(analysis).forEach((label) => {
-				const item = document.createElement("section");
-				item.className = "paper-interpretation-item";
-				const heading = document.createElement("strong");
-				heading.textContent = label;
-				const body = document.createElement("p");
-				body.textContent = analysis[label];
-				item.appendChild(heading);
-				item.appendChild(body);
-				grid.appendChild(item);
-			});
-			return grid;
+			return compact(
+				paper.summary ||
+					analysis["Insight"] ||
+					paper.reason ||
+					paper.abstract ||
+					"这篇 Zotero paper 还没有摘要。",
+				210
+			);
+		}
+
+		function normalizeZoteroForModal(paper) {
+			const analysis = zoteroAnalysisFor(paper);
+			return {
+				id: `zotero-${getZoteroKey(paper)}`,
+				title: paper.title || "Untitled paper",
+				summary: paper.abstract || paper.summary || paper.reason || "",
+				url: paper.url || "",
+				repo_url: paper.repo_url || "",
+				authors: paper.authors || [],
+				published: paper.year || "",
+				updated: paper.year || "",
+				primary_category: paper.publication || (paper.collection_shorts || [])[0] || "",
+				categories: paper.collections || paper.collection_shorts || [],
+				brief: {
+					card_summary: getZoteroCardSummary(paper),
+					repo_url: paper.repo_url || "",
+				},
+				analysis: {
+					motivation: analysis["论文动机"],
+					method: analysis["方法"],
+					experiments: analysis["实验结果"],
+					insight: analysis["Insight"],
+				},
+			};
 		}
 
 		function renderItems() {
-			const items = getVisibleItems();
+			const visibleItems = getVisibleItems();
+			const items = visibleItems
+				.slice()
+				.sort((a, b) => {
+					const starCompare = Number(isStarred(b)) - Number(isStarred(a));
+					if (starCompare !== 0) {
+						return starCompare;
+					}
+					const yearCompare = String(b.year || "").localeCompare(String(a.year || ""));
+					if (yearCompare !== 0) {
+						return yearCompare;
+					}
+					return String(a.title || "").localeCompare(String(b.title || ""));
+				})
+				.slice(0, 30);
+			const modalItems = items.map(normalizeZoteroForModal);
 			list.innerHTML = "";
 			renderFilters();
-			renderSummary(items);
+			renderSummary(visibleItems);
 			if (!allItems.length) {
 				setEmpty("Zotero Paper List is not available yet.", false);
 				return;
@@ -3684,42 +3854,71 @@ function bindGlassTopbar() {
 				return;
 			}
 			setEmpty("", true);
-			items
-				.slice()
-				.sort((a, b) => {
-					const levelCompare = levelRank(a.level) - levelRank(b.level);
-					if (levelCompare !== 0) {
-						return levelCompare;
-					}
-					return String(b.year || "").localeCompare(String(a.year || ""));
-				})
-				.slice(0, 30)
-				.forEach((paper) => {
+			items.forEach((paper, index) => {
 					const card = document.createElement("article");
-					card.className = "zotero-paper-card";
+					card.className = "academic-paper-card zotero-paper-card";
+					card.dataset.paperKey = getZoteroKey(paper);
 
-					appendMeta(card, [
+					const top = document.createElement("div");
+					top.className = "paper-card-top";
+					const titleWrap = document.createElement("div");
+					titleWrap.className = "paper-card-title";
+					appendMeta(titleWrap, [
 						paper.year || "年份待确认",
-						paper.level ? `价值 ${paper.level}` : "",
+						paper.publication || "",
 						(paper.collections || []).slice(0, 2).join(" / "),
 					]);
 
 					const title = document.createElement("h3");
-					if (paper.url) {
-						const link = document.createElement("a");
-						link.href = paper.url;
-						link.target = "_blank";
-						link.rel = "noopener noreferrer";
-						link.textContent = paper.title || "Untitled paper";
-						title.appendChild(link);
-					} else {
-						title.textContent = paper.title || "Untitled paper";
-					}
-					card.appendChild(title);
+					title.textContent = paper.title || "Untitled paper";
+					titleWrap.appendChild(title);
 
-					card.appendChild(createZoteroFactsStrip(paper));
-					card.appendChild(createZoteroInterpretation(paper));
+					const actions = document.createElement("div");
+					actions.className = "paper-card-actions";
+					const starButton = document.createElement("button");
+					starButton.type = "button";
+					starButton.className = "paper-star-button";
+					starButton.classList.toggle("is-starred", isStarred(paper));
+					starButton.setAttribute("aria-pressed", isStarred(paper) ? "true" : "false");
+					starButton.setAttribute("aria-label", isStarred(paper) ? "Unstar paper" : "Star paper");
+					starButton.textContent = isStarred(paper) ? "★" : "☆";
+					starButton.addEventListener("click", (event) => {
+						event.preventDefault();
+						event.stopPropagation();
+						toggleStar(paper);
+						renderItems();
+					});
+					const detailButton = document.createElement("button");
+					detailButton.type = "button";
+					detailButton.className = "paper-detail-trigger";
+					detailButton.textContent = "详情";
+					detailButton.addEventListener("click", () => {
+						if (window.openAcademicPaperModal) {
+							window.openAcademicPaperModal(modalItems[index], index, modalItems.length, modalItems);
+						} else if (paper.url) {
+							window.open(paper.url, "_blank", "noopener,noreferrer");
+						}
+					});
+					actions.appendChild(starButton);
+					actions.appendChild(detailButton);
+					top.appendChild(titleWrap);
+					top.appendChild(actions);
 
+					const summary = document.createElement("p");
+					summary.className = "paper-card-summary";
+					summary.textContent = getZoteroCardSummary(paper);
+
+					const tags = document.createElement("div");
+					tags.className = "academic-paper-tags";
+					getZoteroTags(paper).forEach((tag) => {
+						const span = document.createElement("span");
+						span.textContent = tag;
+						tags.appendChild(span);
+					});
+
+					card.appendChild(top);
+					card.appendChild(summary);
+					card.appendChild(tags);
 					list.appendChild(card);
 				});
 		}
