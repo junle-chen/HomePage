@@ -1033,6 +1033,39 @@ if (isPhone) {
 	);
 }
 
+const GISCUS_CONFIG = {
+	repo: "junle-chen/HomePage",
+	repoId: "R_kgDOS9Tb_g",
+	category: "General",
+	categoryId: "DIC_kwDOS9Tb_s4C_XG4",
+};
+
+function isNoteHash(hash) {
+	return /^#note-\d+$/.test(hash || "");
+}
+
+function isAcademicHash(hash) {
+	return ["#papers", "#daily-paper", "#paper-list"].indexOf(hash || "") !== -1;
+}
+
+function getGiscusTheme() {
+	const main = document.querySelector(".content-main");
+	return main && main.classList.contains("theme-light") ? "light" : "dark";
+}
+
+function updateGiscusTheme() {
+	const iframe = document.querySelector("iframe.giscus-frame");
+	if (!iframe || !iframe.contentWindow) {
+		return;
+	}
+	iframe.contentWindow.postMessage(
+		{ giscus: { setConfig: { theme: getGiscusTheme() } } },
+		"https://giscus.app"
+	);
+}
+
+window.updateGiscusTheme = updateGiscusTheme;
+
 function bindContentFilters() {
 	const noteSearch = document.getElementById("noteSearch");
 	const noteCards = Array.prototype.slice.call(
@@ -1092,8 +1125,11 @@ function bindContentFilters() {
 		let visible = 0;
 		noteCards.forEach((card) => {
 			const matched = matches(card, query, activeFilter);
-			card.hidden = !matched;
-			card.classList.toggle("is-hidden", !matched);
+			const shell = card.closest("[data-note-shell]") || card;
+			shell.hidden = !matched;
+			shell.classList.toggle("is-hidden", !matched);
+			card.hidden = false;
+			card.classList.remove("is-hidden");
 			if (matched) {
 				visible += 1;
 			}
@@ -1180,20 +1216,29 @@ function bindContentFilters() {
 			return;
 		}
 		const isMemoView = hash === "#memos";
-		const isAcademicView = hash === "#papers";
+		const isAcademicView = isAcademicHash(hash);
 		const isAboutView = hash === "#about";
+		const isNoteView = isNoteHash(hash);
 		main.classList.toggle("view-memos", isMemoView);
 		main.classList.toggle("view-academic", isAcademicView);
 		main.classList.toggle("view-about", isAboutView);
+		main.classList.toggle("view-note", isNoteView);
 		if (isAboutView) {
 			playAboutIntro(main, options.introDelay || 0);
 		} else {
 			clearAboutIntro(main);
 		}
 		Array.prototype.slice
-			.call(document.querySelectorAll(".topbar-nav a"))
-			.forEach((link) => {
-				link.classList.toggle("is-active", link.getAttribute("href") === hash);
+			.call(document.querySelectorAll(".topbar-nav a, .topbar-dropbtn"))
+			.forEach((item) => {
+				const href = item.getAttribute("href");
+				const section = item.dataset.navSection || "";
+				const active =
+					href === hash ||
+					(section === "blog" && (hash === "#notes" || isNoteView)) ||
+					(section === "academic" && isAcademicView) ||
+					(section === "about" && isAboutView);
+				item.classList.toggle("is-active", active);
 			});
 }
 
@@ -1202,6 +1247,9 @@ function bindLocalAnchors() {
 		.call(document.querySelectorAll('a[href^="#"]'))
 		.forEach((link) => {
 			link.addEventListener("click", (event) => {
+				if (link.hasAttribute("data-note-open")) {
+					return;
+				}
 				const hash = link.getAttribute("href");
 				if (!hash || hash === "#") {
 					return;
@@ -1210,7 +1258,7 @@ function bindLocalAnchors() {
 				const wasLoaded = loadAll.loaded;
 				loadAll();
 				setWorkspaceView(hash, {
-					introDelay: hash === "#about" && !wasLoaded ? 1150 : 0,
+					introDelay: 0,
 				});
 				window.history.replaceState(null, "", hash);
 				setTimeout(() => scrollMainToHash(hash), 500);
@@ -1224,10 +1272,15 @@ function bindLocalAnchors() {
 			return;
 		}
 		const hash = window.location.hash;
+		if (isNoteHash(hash) && window.openNoteByHash) {
+			loadAll();
+			window.openNoteByHash(hash, { updateHash: false });
+			return;
+		}
 		const wasLoaded = loadAll.loaded;
 		loadAll();
 		setWorkspaceView(hash, {
-			introDelay: hash === "#about" && !wasLoaded ? 1150 : 0,
+			introDelay: 0,
 		});
 		setTimeout(() => scrollMainToHash(hash), 1300);
 	}
@@ -1235,14 +1288,25 @@ function bindLocalAnchors() {
 	function bindHashNavigation() {
 		window.addEventListener("hashchange", () => {
 			if (!window.location.hash || window.location.hash === "#") {
+				if (window.closeNoteReader) {
+					window.closeNoteReader({ setHash: false });
+				}
 				setWorkspaceView("#about");
 				return;
 			}
 			const hash = window.location.hash;
+			if (isNoteHash(hash) && window.openNoteByHash) {
+				loadAll();
+				window.openNoteByHash(hash, { updateHash: false });
+				return;
+			}
+			if (window.closeNoteReader) {
+				window.closeNoteReader({ setHash: false });
+			}
 			const wasLoaded = loadAll.loaded;
 			loadAll();
 			setWorkspaceView(hash, {
-				introDelay: hash === "#about" && !wasLoaded ? 1150 : 0,
+				introDelay: 0,
 			});
 			setTimeout(() => scrollMainToHash(hash), 120);
 		});
@@ -1273,6 +1337,9 @@ function bindThemeToggle() {
 		const nextTheme = main.classList.contains("theme-light") ? "dark" : "light";
 		window.localStorage.setItem("junle-homepage-theme", nextTheme);
 		applyTheme(nextTheme);
+		if (window.updateGiscusTheme) {
+			window.updateGiscusTheme();
+		}
 	});
 }
 
@@ -1317,33 +1384,409 @@ function bindGlassTopbar() {
 	}
 
 	function bindExternalDropdown() {
-		const dropdown = document.querySelector("[data-topbar-dropdown]");
-		const button = document.querySelector("[data-dropdown-toggle]");
-		if (!dropdown || !button) {
+		const dropdowns = Array.prototype.slice.call(
+			document.querySelectorAll("[data-topbar-dropdown]")
+		);
+		if (!dropdowns.length) {
 			return;
 		}
 
-		function setOpen(open) {
+		function setOpen(dropdown, open) {
+			const button = dropdown.querySelector("[data-dropdown-toggle]");
 			dropdown.classList.toggle("is-open", open);
-			button.setAttribute("aria-expanded", open ? "true" : "false");
+			if (button) {
+				button.setAttribute("aria-expanded", open ? "true" : "false");
+			}
 		}
 
-		button.addEventListener("click", (event) => {
-			event.stopPropagation();
-			setOpen(!dropdown.classList.contains("is-open"));
+		dropdowns.forEach((dropdown) => {
+			const button = dropdown.querySelector("[data-dropdown-toggle]");
+			if (!button) {
+				return;
+			}
+			button.addEventListener("click", (event) => {
+				event.stopPropagation();
+				const nextOpen = !dropdown.classList.contains("is-open");
+				dropdowns.forEach((item) => setOpen(item, false));
+				setOpen(dropdown, nextOpen);
+			});
+			Array.prototype.slice
+				.call(dropdown.querySelectorAll("a"))
+				.forEach((link) => {
+					link.addEventListener("click", () => setOpen(dropdown, false));
+				});
 		});
 
 		document.addEventListener("click", (event) => {
-			if (!dropdown.contains(event.target)) {
-				setOpen(false);
-			}
+			dropdowns.forEach((dropdown) => {
+				if (!dropdown.contains(event.target)) {
+					setOpen(dropdown, false);
+				}
+			});
 		});
 
 		document.addEventListener("keydown", (event) => {
 			if (event.key === "Escape") {
-				setOpen(false);
+				dropdowns.forEach((dropdown) => setOpen(dropdown, false));
 			}
 		});
+	}
+
+	function escapeHtml(value) {
+		return String(value || "").replace(/[&<>"']/g, (char) => {
+			const entities = {
+				"&": "&amp;",
+				"<": "&lt;",
+				">": "&gt;",
+				'"': "&quot;",
+				"'": "&#39;",
+			};
+			return entities[char] || char;
+		});
+	}
+
+	function stripMarkdownFrontMatter(markdown) {
+		return String(markdown || "").replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "");
+	}
+
+	function slugifyHeading(text, usedIds) {
+		const base =
+			String(text || "")
+				.toLowerCase()
+				.replace(/<[^>]+>/g, "")
+				.replace(/[^\w\u4e00-\u9fa5]+/g, "-")
+				.replace(/^-+|-+$/g, "") || "section";
+		let id = base;
+		let index = 2;
+		while (usedIds[id]) {
+			id = `${base}-${index}`;
+			index += 1;
+		}
+		usedIds[id] = true;
+		return id;
+	}
+
+	function resolveMarkdownUrl(url, baseUrl) {
+		const value = String(url || "").trim();
+		if (!value || /^(https?:|mailto:|#|data:)/i.test(value)) {
+			return value;
+		}
+		if (value.charAt(0) === "/") {
+			return value;
+		}
+		const base = String(baseUrl || "").split("/").slice(0, -1).join("/");
+		return base ? `${base}/${value}` : value;
+	}
+
+	function renderInlineMarkdown(text, baseUrl) {
+		const codeSnippets = [];
+		let html = escapeHtml(text).replace(/`([^`]+)`/g, (_, code) => {
+			const token = `@@CODE_${codeSnippets.length}@@`;
+			codeSnippets.push(`<code>${escapeHtml(code)}</code>`);
+			return token;
+		});
+		html = html.replace(
+			/!\[([^\]]*)\]\(([^)]+)\)/g,
+			(_, alt, url) =>
+				`<img src="${escapeHtml(resolveMarkdownUrl(url, baseUrl))}" alt="${escapeHtml(alt)}">`
+		);
+		html = html.replace(
+			/\[([^\]]+)\]\(([^)]+)\)/g,
+			(_, label, url) =>
+				`<a href="${escapeHtml(resolveMarkdownUrl(url, baseUrl))}" target="_blank" rel="noopener noreferrer">${label}</a>`
+		);
+		html = html
+			.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+			.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+		codeSnippets.forEach((snippet, index) => {
+			html = html.replace(`@@CODE_${index}@@`, snippet);
+		});
+		return html;
+	}
+
+	function markdownToHtml(markdown, baseUrl) {
+		const lines = stripMarkdownFrontMatter(markdown).split(/\r?\n/);
+		const headings = [];
+		const usedIds = {};
+		const html = [];
+		let paragraph = [];
+		let list = null;
+		let codeBlock = null;
+
+		function flushParagraph() {
+			if (!paragraph.length) {
+				return;
+			}
+			html.push(`<p>${renderInlineMarkdown(paragraph.join(" "), baseUrl)}</p>`);
+			paragraph = [];
+		}
+
+		function flushList() {
+			if (!list) {
+				return;
+			}
+			html.push(`<${list.type}>${list.items.map((item) => `<li>${renderInlineMarkdown(item, baseUrl)}</li>`).join("")}</${list.type}>`);
+			list = null;
+		}
+
+		lines.forEach((rawLine) => {
+			const line = rawLine.replace(/\s+$/, "");
+			const fence = line.match(/^```(.*)$/);
+			if (fence) {
+				flushParagraph();
+				flushList();
+				if (codeBlock) {
+					html.push(`<pre><code>${escapeHtml(codeBlock.lines.join("\n"))}</code></pre>`);
+					codeBlock = null;
+				} else {
+					codeBlock = { language: fence[1] || "", lines: [] };
+				}
+				return;
+			}
+			if (codeBlock) {
+				codeBlock.lines.push(rawLine);
+				return;
+			}
+			if (!line.trim()) {
+				flushParagraph();
+				flushList();
+				return;
+			}
+			const heading = line.match(/^(#{1,4})\s+(.+)$/);
+			if (heading) {
+				flushParagraph();
+				flushList();
+				const level = Math.min(4, heading[1].length);
+				const text = heading[2].trim();
+				const id = slugifyHeading(text, usedIds);
+				headings.push({ id, level, text });
+				html.push(`<h${level} id="${id}">${renderInlineMarkdown(text, baseUrl)}</h${level}>`);
+				return;
+			}
+			const quote = line.match(/^>\s+(.+)$/);
+			if (quote) {
+				flushParagraph();
+				flushList();
+				html.push(`<blockquote>${renderInlineMarkdown(quote[1], baseUrl)}</blockquote>`);
+				return;
+			}
+			const unordered = line.match(/^\s*[-*]\s+(.+)$/);
+			const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
+			if (unordered || ordered) {
+				flushParagraph();
+				const type = unordered ? "ul" : "ol";
+				if (!list || list.type !== type) {
+					flushList();
+					list = { type, items: [] };
+				}
+				list.items.push((unordered || ordered)[1]);
+				return;
+			}
+			flushList();
+			paragraph.push(line.trim());
+		});
+
+		flushParagraph();
+		flushList();
+		if (codeBlock) {
+			html.push(`<pre><code>${escapeHtml(codeBlock.lines.join("\n"))}</code></pre>`);
+		}
+
+		return {
+			html: html.join(""),
+			headings: headings.filter((heading) => heading.level > 1),
+		};
+	}
+
+	function loadGiscus(host, term) {
+		if (!host || !term) {
+			return;
+		}
+		host.innerHTML = "";
+		const script = document.createElement("script");
+		script.src = "https://giscus.app/client.js";
+		script.async = true;
+		script.crossOrigin = "anonymous";
+		script.setAttribute("data-repo", GISCUS_CONFIG.repo);
+		script.setAttribute("data-repo-id", GISCUS_CONFIG.repoId);
+		script.setAttribute("data-category", GISCUS_CONFIG.category);
+		script.setAttribute("data-category-id", GISCUS_CONFIG.categoryId);
+		script.setAttribute("data-mapping", "specific");
+		script.setAttribute("data-term", term);
+		script.setAttribute("data-strict", "1");
+		script.setAttribute("data-reactions-enabled", "1");
+		script.setAttribute("data-emit-metadata", "0");
+		script.setAttribute("data-input-position", "bottom");
+		script.setAttribute("data-theme", getGiscusTheme());
+		script.setAttribute("data-lang", "zh-CN");
+		host.appendChild(script);
+	}
+
+	function bindNoteReader() {
+		const reader = document.querySelector("[data-note-reader]");
+		const cards = Array.prototype.slice.call(
+			document.querySelectorAll("[data-note-open]")
+		);
+		if (!reader || !cards.length) {
+			return;
+		}
+		const blogLayout = document.getElementById("notes");
+		const body = reader.querySelector("[data-note-body]");
+		const outline = reader.querySelector("[data-note-outline]");
+		const image = reader.querySelector("[data-reader-image]");
+		const title = reader.querySelector("[data-reader-title]");
+		const excerpt = reader.querySelector("[data-reader-excerpt]");
+		const date = reader.querySelector("[data-reader-date]");
+		const category = reader.querySelector("[data-reader-category]");
+		const readTime = reader.querySelector("[data-reader-read-time]");
+		const tags = reader.querySelector("[data-reader-tags]");
+		const giscusHost = reader.querySelector("[data-giscus-host]");
+		const backButton = reader.querySelector("[data-note-back]");
+		let activeRequest = 0;
+
+		function renderOutline(headings) {
+			outline.innerHTML = "";
+			if (!headings.length) {
+				const empty = document.createElement("p");
+				empty.className = "empty-state";
+				empty.textContent = "No outline";
+				outline.appendChild(empty);
+				return;
+			}
+			headings.forEach((heading) => {
+				const link = document.createElement("a");
+				link.href = `#${heading.id}`;
+				link.className = `outline-level-${heading.level}`;
+				link.textContent = heading.text;
+				link.addEventListener("click", (event) => {
+					event.preventDefault();
+					const target = document.getElementById(heading.id);
+					if (target) {
+						target.scrollIntoView({ behavior: "smooth", block: "start" });
+					}
+				});
+				outline.appendChild(link);
+			});
+		}
+
+		function closeReader(options = {}) {
+			reader.hidden = true;
+			reader.classList.remove("is-open");
+			if (blogLayout) {
+				blogLayout.hidden = false;
+			}
+			if (giscusHost) {
+				giscusHost.innerHTML = "";
+			}
+			if (options.setHash !== false) {
+				window.history.replaceState(null, "", "#notes");
+			}
+			setWorkspaceView("#notes");
+		}
+
+		function openReader(card, options = {}) {
+			const noteId = card.dataset.noteId;
+			const noteUrl = card.dataset.noteUrl;
+			const commentTerm = card.dataset.commentTerm || `note:${noteUrl}`;
+			activeRequest += 1;
+			const requestId = activeRequest;
+			loadAll();
+			reader.hidden = false;
+			reader.classList.add("is-open");
+			if (blogLayout) {
+				blogLayout.hidden = true;
+			}
+			setWorkspaceView(`#${noteId}`);
+			if (options.updateHash !== false) {
+				window.history.replaceState(null, "", `#${noteId}`);
+			}
+
+			if (image) {
+				image.style.setProperty("--reader-image", `url("${card.dataset.noteImage || ""}")`);
+			}
+			if (title) {
+				title.textContent = card.dataset.title || "Untitled";
+			}
+			if (excerpt) {
+				excerpt.textContent = card.dataset.excerpt || "";
+				excerpt.hidden = !card.dataset.excerpt;
+			}
+			if (date) {
+				date.textContent = card.dataset.date || "Undated";
+			}
+			if (category) {
+				category.textContent = card.dataset.category || "Note";
+			}
+			if (readTime) {
+				readTime.textContent = `${card.dataset.readTime || "3"} min read`;
+			}
+			if (tags) {
+				tags.textContent = (card.dataset.tags || "").split("|").filter(Boolean).join(" / ");
+				tags.hidden = !tags.textContent;
+			}
+			if (body) {
+				body.innerHTML = '<p class="reader-loading">Loading note...</p>';
+			}
+			if (outline) {
+				outline.innerHTML = "";
+			}
+			if (giscusHost) {
+				giscusHost.innerHTML = "";
+			}
+
+			fetch(noteUrl, { cache: "no-store" })
+				.then((response) => {
+					if (!response.ok) {
+						throw new Error("Note markdown missing");
+					}
+					return response.text();
+				})
+				.then((markdown) => {
+					if (requestId !== activeRequest) {
+						return;
+					}
+					const rendered = markdownToHtml(markdown, noteUrl);
+					body.innerHTML = rendered.html || `<p>${escapeHtml(card.dataset.excerpt || "")}</p>`;
+					renderOutline(rendered.headings);
+					loadGiscus(giscusHost, commentTerm);
+				})
+				.catch(() => {
+					if (requestId !== activeRequest) {
+						return;
+					}
+					body.innerHTML = `<p>${escapeHtml(card.dataset.excerpt || "This note could not be loaded.")}</p>`;
+					renderOutline([]);
+					loadGiscus(giscusHost, commentTerm);
+				});
+
+			setTimeout(() => scrollMainToHash("#note-reader"), 80);
+		}
+
+		cards.forEach((card) => {
+			card.addEventListener("click", (event) => {
+				event.preventDefault();
+				openReader(card);
+			});
+		});
+
+		if (backButton) {
+			backButton.addEventListener("click", () => {
+				closeReader();
+				setTimeout(() => scrollMainToHash("#notes"), 60);
+			});
+		}
+
+		window.openNoteByHash = function (hash, options = {}) {
+			const id = String(hash || "").replace(/^#/, "");
+			const card = cards.find((item) => item.dataset.noteId === id);
+			if (!card) {
+				closeReader({ setHash: false });
+				setWorkspaceView("#notes");
+				return;
+			}
+			openReader(card, options);
+		};
+		window.closeNoteReader = closeReader;
 	}
 
 	function bindMemoManager() {
@@ -2518,6 +2961,7 @@ function bindGlassTopbar() {
 		bindGlassTopbar();
 		bindNoteViewToggle();
 		bindExternalDropdown();
+		bindNoteReader();
 		bindMemoManager();
 		bindDailyPapers();
 		bindZoteroPaperList();

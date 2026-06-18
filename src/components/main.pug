@@ -27,6 +27,16 @@
 
 .content.content-main
 	canvas.grid-background#gridCanvas
+	.about-intro-stage(data-about-intro-stage aria-hidden="true")
+		.about-fluid-field(aria-hidden="true")
+			span.fluid-blob.blob-one
+			span.fluid-blob.blob-two
+			span.fluid-blob.blob-three
+			span.fluid-blob.blob-four
+			span.fluid-blob.blob-five
+		.about-intro-copy
+			h2 JunleOS
+			p Personal research workspace
 	.site-shell.app-shell
 		.workspace-panel
 			header.workspace-topbar
@@ -34,15 +44,19 @@
 					p.workspace-kicker Personal homepage
 					h2 Blog Library
 				.topbar-nav(aria-label="Primary sections")
-					a(href="#notes") Blog
+					a(href="#notes" data-nav-section="blog") Blog
 					a(href="#memos") Memo
-					a(href="#papers") Academic
+					.topbar-dropdown(data-topbar-dropdown)
+						button.topbar-dropbtn(type="button" aria-expanded="false" data-dropdown-toggle data-nav-section="academic") Academic
+						.topbar-menu
+							a(href="#daily-paper") Daily Paper
+							a(href="#paper-list") Paper List
 					.topbar-dropdown(data-topbar-dropdown)
 						button.topbar-dropbtn(type="button" aria-expanded="false" data-dropdown-toggle) External
 						.topbar-menu
 							each resource in externalResources
 								a(href=`${resource.href}` target="_blank" rel="noopener noreferrer") #{resource.title}
-					a(href="#about") About Me
+					a(href="#about" data-nav-section="about") About Me
 				.topbar-actions
 					label.topbar-search(for="noteSearch")
 						span Search
@@ -51,16 +65,6 @@
 						span.theme-toggle-icon(data-theme-icon) ☀
 
 			section.about-panel#about
-				.about-intro-stage(data-about-intro-stage aria-hidden="true")
-					.about-fluid-field(aria-hidden="true")
-						span.fluid-blob.blob-one
-						span.fluid-blob.blob-two
-						span.fluid-blob.blob-three
-						span.fluid-blob.blob-four
-						span.fluid-blob.blob-five
-					.about-intro-copy
-						h2 JunleOS
-						p Personal research workspace
 				.about-profile
 					.about-card
 						header.about-header
@@ -165,20 +169,45 @@
 					.post-feed.note-view-image(data-note-feed)
 						each note, index in notes
 							- const image = cardImages[index % cardImages.length]
-							a.post-card.note-card(href=`${note.url}` target="_blank" rel="noopener noreferrer" data-note-card data-title=`${note.title}` data-tags=`${(note.tags || []).join('|')}` data-category=`${note.category || ''}` data-excerpt=`${note.excerpt || ''}` style=`--card-image: url("${image}")`)
-								.post-art(aria-hidden="true")
-								.post-content
-									.post-meta
-										span #{note.date || "Undated"}
-										span #{note.category || "Note"}
-									h3 #{note.title}
-									if note.excerpt
-										p #{note.excerpt}
-									else
-										p.muted Preserved Markdown note from the old site.
-									.post-footer
-										span.read-time #{Math.max(3, Math.ceil((note.excerpt || note.title || '').length / 120))} min read
-										if note.tags && note.tags.length
-											span.tags-inline #{note.tags.slice(0, 2).join(" / ")}
-								span.post-arrow(aria-hidden="true") >
+							- const noteId = `note-${index}`
+							- const noteTags = (note.tags || []).join('|')
+							- const readTime = Math.max(3, Math.ceil((note.excerpt || note.title || '').length / 120))
+							article.note-card-shell(data-note-shell)
+								a.post-card.note-card(href=`#${noteId}` data-note-card data-note-open data-note-id=`${noteId}` data-note-index=`${index}` data-note-url=`${note.url}` data-note-image=`${image}` data-comment-term=`note:${note.url}` data-title=`${note.title}` data-tags=`${noteTags}` data-category=`${note.category || ''}` data-date=`${note.date || ''}` data-excerpt=`${note.excerpt || ''}` data-read-time=`${readTime}` style=`--card-image: url("${image}")`)
+									.post-art(aria-hidden="true")
+									.post-content
+										.post-meta
+											span #{note.date || "Undated"}
+											span #{note.category || "Note"}
+										h3 #{note.title}
+										if note.excerpt
+											p #{note.excerpt}
+										else
+											p.muted Preserved Markdown note from the old site.
+										.post-footer
+											span.read-time #{readTime} min read
+											if note.tags && note.tags.length
+												span.tags-inline #{note.tags.slice(0, 2).join(" / ")}
+									span.post-arrow(aria-hidden="true") >
 					p.empty-state#noteEmptyState(hidden) No matching notes.
+
+			section.note-reader#note-reader(data-note-reader hidden)
+				.note-reader-shell
+					article.note-article
+						button.note-reader-back(type="button" data-note-back) Back to Notes
+						.note-hero-image(data-reader-image aria-hidden="true")
+						.note-article-meta
+							span(data-reader-date)
+							span(data-reader-category)
+							span(data-reader-read-time)
+							span(data-reader-tags)
+						h1(data-reader-title)
+						p.note-lead(data-reader-excerpt)
+						.note-body(data-note-body)
+						section.note-comments
+							h2 Comments
+							.giscus-host(data-giscus-host)
+					aside.note-outline-panel
+						p.section-eyebrow Outline
+						h3 Table of contents
+						nav.note-outline(data-note-outline)
