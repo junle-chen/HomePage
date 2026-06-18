@@ -23,7 +23,6 @@
 - const tagCounts = new Map()
 - notes.forEach(note => (note.tags || []).forEach(tag => tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1)))
 - const tags = Array.from(tagCounts.entries()).sort((a, b) => b[1] - a[1])
-- const cardImages = ["../assets/content/assets/img/path.jpg", "../assets/content/assets/img/thumb.png", "../assets/content/assets/img/bgimage.png", "../assets/content/assets/img/crepe.jpg", "../assets/background.png"]
 - const collectionItems = categories.map(category => ({ name: category, count: notes.filter(note => note.category === category || (note.tags || []).includes(category)).length }))
 
 .content.content-main
@@ -177,15 +176,17 @@
 							each category in categories
 								button(type="button" data-filter-value=`${category}`) #{category}
 							button(type="button" data-filter-value="__archive" data-archive-filter) Archive
-					.post-feed.note-view-image(data-note-feed)
+					.post-feed.note-view-site(data-note-feed)
 						each note, index in notes
-							- const image = cardImages[index % cardImages.length]
+							- const image = note.image || note.cover || note.hero || note.thumbnail || ""
+							- const hasImage = Boolean(image)
 							- const noteId = `note-${index}`
 							- const noteTags = (note.tags || []).join('|')
 							- const readTime = Math.max(3, Math.ceil((note.excerpt || note.title || '').length / 120))
 							article.note-card-shell(data-note-shell)
-								a.post-card.note-card(href=`#${noteId}` data-note-card data-note-open data-note-id=`${noteId}` data-note-key=`${note.url}` data-note-index=`${index}` data-note-url=`${note.url}` data-note-image=`${image}` data-comment-term=`note:${note.url}` data-title=`${note.title}` data-tags=`${noteTags}` data-category=`${note.category || ''}` data-date=`${note.date || ''}` data-excerpt=`${note.excerpt || ''}` data-read-time=`${readTime}` style=`--card-image: url("${image}")`)
-									.post-art(aria-hidden="true")
+								a.post-card.note-card(class=!hasImage ? "no-image" : null href=`#${noteId}` data-note-card data-note-open data-note-id=`${noteId}` data-note-key=`${note.url}` data-note-index=`${index}` data-note-url=`${note.url}` data-note-image=`${image}` data-note-archived=(note.archived || note.archive) ? "true" : "false" data-comment-term=`note:${note.url}` data-title=`${note.title}` data-tags=`${noteTags}` data-category=`${note.category || ''}` data-date=`${note.date || ''}` data-excerpt=`${note.excerpt || ''}` data-read-time=`${readTime}` style=hasImage ? `--card-image: url("${image}")` : null)
+									if hasImage
+										.post-art(aria-hidden="true")
 									.post-content
 										.post-meta
 											span #{note.date || "Undated"}

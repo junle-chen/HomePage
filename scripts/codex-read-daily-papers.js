@@ -215,11 +215,12 @@ function buildPrompt(paper, source) {
 		source_text: compact(source.text, maxChars),
 	};
 	return [
-		"你是 Junle Chen 的 Daily Paper 阅读自动化。请基于提供的论文文本仔细阅读并生成中文解读。",
+		"你是个人主页的 Daily Paper 阅读自动化。请基于提供的论文文本仔细阅读并生成中文解读。",
 		"关注 agentic RL、multi-turn agent、long-horizon planning、agent planning、agent memory、planning reliability。",
 		"如果 source_scope 是 abstract，只能说这是摘要级判断，不能声称已读全文。",
 		"推荐等级只能使用 高 / 中 / 低；偏水风险只能使用 低 / 中 / 高；不要输出具体数字分数。",
-		"请判断论文是否值得读，是否可能是水文，并给出原因。重点从论文动机、方法、实验结果、对 Junle research 的帮助四个角度写。",
+		"请判断论文是否值得读，是否可能是水文，并给出原因。重点从论文动机、方法、实验结果、Insight 四个角度写。",
+		"research_help 字段请写成 Insight：只说明对 agent planning / agentic RL / 多轮系统 / long-horizon reliability 的可迁移启发，不要出现 Junle 或 Junle research。",
 		"输出必须是严格 JSON，不要 Markdown，不要解释 JSON 之外的内容。",
 		"",
 		JSON.stringify(payload, null, 2),
@@ -311,7 +312,8 @@ function normalizeAnswer(answer, source, modelName) {
 		motivation: value("motivation", "需进一步阅读正文确认动机。"),
 		method: value("method", "需进一步阅读正文确认方法。"),
 		experiments: value("experiments", "需进一步阅读正文确认实验设置和结果。"),
-		research_help: value("research_help", "可作为 Daily Paper 候选，先检查是否服务当前 research。"),
+		research_help: value("research_help", "可作为 Daily Paper 候选，先检查对 agent planning、agentic RL 或多轮系统是否有可迁移启发。"),
+		insight: value("research_help", "可作为 Daily Paper 候选，先检查对 agent planning、agentic RL 或多轮系统是否有可迁移启发。"),
 		recommendation_level: ["高", "中", "低"].includes(answer.recommendation_level)
 			? answer.recommendation_level
 			: "中",
@@ -344,6 +346,7 @@ function applyAnalysis(paper, analysis) {
 		method: analysis.method,
 		experiments: analysis.experiments,
 		research_help: analysis.research_help,
+		insight: analysis.insight || analysis.research_help,
 		contribution: analysis.value_reason,
 		highlights: [
 			analysis.value_reason,

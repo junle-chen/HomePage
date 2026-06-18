@@ -1043,6 +1043,7 @@ const GISCUS_CONFIG = {
 
 const OWNER_STORAGE_KEY = "junle-homepage-owner-mode-v2";
 const NOTE_ARCHIVE_STORAGE_KEY = "junle-homepage-archived-notes-v1";
+const NOTE_VIEW_STORAGE_KEY = "junle-homepage-note-view-v2";
 
 function isOwnerModeEnabled() {
 	return window.localStorage.getItem(OWNER_STORAGE_KEY) === "true";
@@ -1127,7 +1128,22 @@ function bindContentFilters() {
 			.filter(Boolean);
 	}
 
-	function readArchivedNotes() {
+	function getNoteKey(card) {
+		return card.dataset.noteKey || card.dataset.noteUrl || card.dataset.noteId || "";
+	}
+
+	function getStaticArchivedNotes() {
+		return noteCards
+			.filter((card) => card.dataset.noteArchived === "true")
+			.map(getNoteKey)
+			.filter(Boolean);
+	}
+
+	function isStaticArchived(key) {
+		return getStaticArchivedNotes().indexOf(key) !== -1;
+	}
+
+	function readLocalArchivedNotes() {
 		try {
 			const value = JSON.parse(
 				window.localStorage.getItem(NOTE_ARCHIVE_STORAGE_KEY)
@@ -1138,15 +1154,22 @@ function bindContentFilters() {
 		}
 	}
 
-	function writeArchivedNotes(keys) {
-		window.localStorage.setItem(
-			NOTE_ARCHIVE_STORAGE_KEY,
-			JSON.stringify(keys)
-		);
+	function readArchivedNotes() {
+		const keys = new Set(getStaticArchivedNotes());
+		readLocalArchivedNotes().forEach((key) => {
+			if (key) {
+				keys.add(key);
+			}
+		});
+		return Array.from(keys);
 	}
 
-	function getNoteKey(card) {
-		return card.dataset.noteKey || card.dataset.noteUrl || card.dataset.noteId || "";
+	function writeArchivedNotes(keys) {
+		const staticKeys = new Set(getStaticArchivedNotes());
+		window.localStorage.setItem(
+			NOTE_ARCHIVE_STORAGE_KEY,
+			JSON.stringify(keys.filter((key) => key && !staticKeys.has(key)))
+		);
 	}
 
 	function isArchived(cardOrKey) {
@@ -1186,13 +1209,20 @@ function bindContentFilters() {
 	function updateArchiveButtons() {
 		const ownerMode = isOwnerModeEnabled();
 		archiveButtons.forEach((button) => {
-			const archived = isArchived(button.dataset.noteKey || "");
+			const key = button.dataset.noteKey || "";
+			const archived = isArchived(key);
+			const staticArchived = isStaticArchived(key);
 			button.hidden = !ownerMode;
-			button.textContent = archived ? "Restore" : "Archive";
+			button.disabled = staticArchived;
+			button.textContent = staticArchived ? "Archived" : archived ? "Restore" : "Archive";
 			button.classList.toggle("is-archived", archived);
 			button.setAttribute(
 				"aria-label",
-				archived ? "Restore note from archive" : "Archive note"
+				staticArchived
+					? "This note is archived in the deployed content"
+					: archived
+						? "Restore note from archive"
+						: "Archive note"
 			);
 		});
 	}
@@ -1256,6 +1286,9 @@ function bindContentFilters() {
 			if (!key) {
 				return;
 			}
+			if (isStaticArchived(key)) {
+				return;
+			}
 			const archived = readArchivedNotes();
 			const index = archived.indexOf(key);
 			if (index === -1) {
@@ -1310,7 +1343,7 @@ function bindContentFilters() {
 			clearAboutIntro.timer = window.setTimeout(() => {
 				main.classList.remove("about-intro-playing");
 				clearAboutIntro.timer = null;
-			}, 150);
+			}, 200);
 		};
 		if (delay > 0) {
 			clearAboutIntro.startTimer = window.setTimeout(startIntro, delay);
@@ -1501,13 +1534,13 @@ function bindGlassTopbar() {
 		buttons.forEach((button) => {
 			button.classList.toggle("is-active", button.dataset.noteView === nextView);
 		});
-		window.localStorage.setItem("junle-homepage-note-view", nextView);
+		window.localStorage.setItem(NOTE_VIEW_STORAGE_KEY, nextView);
 	}
 
 	buttons.forEach((button) => {
 		button.addEventListener("click", () => applyView(button.dataset.noteView));
 	});
-		applyView(window.localStorage.getItem("junle-homepage-note-view") || "site");
+		applyView(window.localStorage.getItem(NOTE_VIEW_STORAGE_KEY) || "site");
 	}
 
 	function bindExternalDropdown() {
@@ -1893,7 +1926,13 @@ function bindGlassTopbar() {
 			}
 
 			if (image) {
-				image.style.setProperty("--reader-image", `url("${card.dataset.noteImage || ""}")`);
+				const noteImage = card.dataset.noteImage || "";
+				image.hidden = !noteImage;
+				if (noteImage) {
+					image.style.setProperty("--reader-image", `url("${noteImage}")`);
+				} else {
+					image.style.removeProperty("--reader-image");
+				}
 			}
 			if (title) {
 				title.textContent = card.dataset.title || "Untitled";
@@ -2313,17 +2352,19 @@ function bindGlassTopbar() {
 				analysis.motivation ||
 				analysis.method ||
 				analysis.experiments ||
+				analysis.insight ||
 				analysis.research_help ||
 				brief.motivation ||
 				brief.method ||
 				brief.experiments ||
+				brief.insight ||
 				brief.research_help
 			) {
 				return {
 					"论文动机": analysis.motivation || brief.motivation || "自动化还没有写入动机解读。",
 					"方法": analysis.method || brief.method || "自动化还没有写入方法解读。",
 					"实验结果": analysis.experiments || brief.experiments || "自动化还没有写入实验结果解读。",
-					"对 research 的帮助": analysis.research_help || brief.research_help || "自动化还没有写入 research 帮助判断。",
+					"Insight": analysis.insight || brief.insight || analysis.research_help || brief.research_help || "自动化还没有写入 insight。",
 				};
 			}
 			const title = paper.title || "Untitled paper";
@@ -2363,7 +2404,7 @@ function bindGlassTopbar() {
 				"论文动机": motivation,
 				"方法": method,
 				"实验结果": experiments,
-				"对 research 的帮助": researchHelp,
+				"Insight": researchHelp,
 			};
 		}
 
@@ -2700,6 +2741,48 @@ function bindGlassTopbar() {
 			return grid;
 		}
 
+		function createDetailSection(label, value) {
+			if (!value) {
+				return null;
+			}
+			const section = document.createElement("section");
+			section.className = "paper-detail-section";
+			const heading = document.createElement("h4");
+			heading.textContent = label;
+			const body = document.createElement("p");
+			body.textContent = value;
+			section.appendChild(heading);
+			section.appendChild(body);
+			return section;
+		}
+
+		function createPaperDetailPanel(paper) {
+			const details = document.createElement("details");
+			details.className = "paper-detail-panel";
+			const summary = document.createElement("summary");
+			summary.textContent = "详情";
+			details.appendChild(summary);
+
+			const content = document.createElement("div");
+			content.className = "paper-detail-content";
+			const interpretation = getPaperInterpretation(paper);
+			Object.keys(interpretation).forEach((label) => {
+				const section = createDetailSection(label, interpretation[label]);
+				if (section) {
+					content.appendChild(section);
+				}
+			});
+			const recommendation = getRecommendation(paper);
+			[
+				createDetailSection("贡献", getContribution(paper)),
+				createDetailSection("推荐理由", [recommendation.judgement, recommendation.reason].filter(Boolean).join(" ")),
+				createDetailSection("局限", paper.analysis && paper.analysis.limitations),
+			].filter(Boolean).forEach((section) => content.appendChild(section));
+
+			details.appendChild(content);
+			return details;
+		}
+
 		function createRecommendationPanel(paper) {
 			const recommendation = getRecommendation(paper);
 			const panel = document.createElement("div");
@@ -2957,6 +3040,7 @@ function bindGlassTopbar() {
 				card.appendChild(top);
 				card.appendChild(createPaperFactsStrip(paper));
 				card.appendChild(interpretation);
+				card.appendChild(createPaperDetailPanel(paper));
 				card.appendChild(tags);
 				fullList.appendChild(card);
 			});
@@ -3180,7 +3264,7 @@ function bindGlassTopbar() {
 					"论文动机": paper.analysis.motivation || "需读正文确认动机。",
 					"方法": paper.analysis.method || "需读正文确认方法。",
 					"实验结果": paper.analysis.experiments || "需读正文确认实验结果。",
-					"对 research 的帮助": paper.analysis.research_help || paper.summary || "作为 Zotero Planning 候选，先检查任务设定和评测协议。",
+					"Insight": paper.analysis.insight || paper.analysis.research_help || paper.summary || "作为 Zotero Planning 候选，先检查任务设定和评测协议。",
 				};
 			}
 			const title = paper.title || "";
@@ -3212,7 +3296,7 @@ function bindGlassTopbar() {
 				"论文动机": motivation,
 				"方法": method,
 				"实验结果": experiments,
-				"对 research 的帮助": help,
+				"Insight": help,
 			};
 		}
 

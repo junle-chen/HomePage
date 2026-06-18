@@ -560,7 +560,7 @@
 		background:
 			radial-gradient(circle at 50% 48%, rgba(255, 255, 255, 0.07), transparent 26%),
 			linear-gradient(135deg, #17191b, #101114 60%, #090a0d);
-		transition: opacity 0.15s ease;
+		transition: opacity 0.2s ease;
 	}
 
 	.content-main.about-intro-playing .about-intro-stage {
@@ -632,7 +632,7 @@
 		position: relative;
 		z-index: 1;
 		text-align: center;
-		animation: aboutIntroCopy 0.15s ease both;
+		animation: aboutIntroCopy 0.2s ease both;
 	}
 
 	.about-intro-copy h2 {
@@ -668,7 +668,7 @@
 	}
 
 	.content-main.view-about:not(.about-intro-playing) .about-profile {
-		animation: aboutProfileReveal 0.15s ease both;
+		animation: aboutProfileReveal 0.2s ease both;
 	}
 
 	@keyframes fluidDrift {
@@ -1599,6 +1599,64 @@
 			-webkit-line-clamp: 2;
 		}
 
+		.paper-detail-panel {
+			min-width: 0;
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			background: rgba(255, 255, 255, 0.035);
+		}
+
+		.paper-detail-panel summary {
+			min-height: 34px;
+			padding: 8px 10px;
+			color: var(--accent);
+			font-size: 0.82rem;
+			font-weight: 900;
+			cursor: pointer;
+			list-style: none;
+		}
+
+		.paper-detail-panel summary::-webkit-details-marker {
+			display: none;
+		}
+
+		.paper-detail-panel summary::after {
+			content: "+";
+			float: right;
+			color: var(--muted);
+		}
+
+		.paper-detail-panel[open] summary::after {
+			content: "-";
+		}
+
+		.paper-detail-content {
+			display: grid;
+			gap: 12px;
+			padding: 0 10px 12px;
+		}
+
+		.paper-detail-section {
+			display: grid;
+			gap: 5px;
+		}
+
+		.paper-detail-section h4 {
+			margin: 0;
+			color: var(--accent);
+			font-size: 0.78rem;
+			line-height: 1.45;
+			letter-spacing: 0;
+		}
+
+		.paper-detail-section p {
+			margin: 0;
+			color: var(--muted);
+			font-size: 0.84rem;
+			line-height: 1.75;
+			overflow-wrap: anywhere;
+		}
+
 		.daily-digest {
 			display: grid;
 			gap: 14px;
@@ -2062,6 +2120,11 @@
 	outline: none;
 }
 
+.note-archive-toggle:disabled {
+	cursor: default;
+	opacity: 0.72;
+}
+
 .post-feed.note-view-site {
 	grid-template-columns: minmax(0, 1fr);
 	align-items: stretch;
@@ -2073,6 +2136,10 @@
 
 .post-feed.note-view-site .post-content {
 	max-width: min(680px, 68%);
+}
+
+.post-feed.note-view-site .post-card.no-image .post-content {
+	max-width: none;
 }
 
 .post-feed.note-view-site .post-card p {
@@ -2093,6 +2160,10 @@
 	min-height: 310px;
 }
 
+.post-feed.note-view-image .post-card.no-image {
+	background: var(--card-bg);
+}
+
 .post-feed.note-view-image .post-art {
 	background:
 		linear-gradient(180deg, rgba(18, 20, 22, 0.06) 0%, rgba(18, 20, 22, 0.48) 56%, rgba(18, 20, 22, 0.92) 100%),
@@ -2111,6 +2182,10 @@
 	max-width: none;
 	min-height: 100%;
 	padding: 24px;
+}
+
+.post-feed.note-view-image .post-card.no-image .post-content {
+	justify-content: flex-start;
 }
 
 .post-feed.note-view-image .post-card p {
