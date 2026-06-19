@@ -17,6 +17,7 @@ const schema = {
 		"experiments",
 		"research_help",
 		"card_summary",
+		"full_summary",
 		"recommendation_level",
 		"water_risk",
 		"value_label",
@@ -31,6 +32,7 @@ const schema = {
 		experiments: { type: "string" },
 		research_help: { type: "string" },
 		card_summary: { type: "string" },
+		full_summary: { type: "string" },
 		recommendation_level: { type: "string", enum: ["高", "中", "低"] },
 		water_risk: { type: "string", enum: ["低", "中", "高"] },
 		value_label: { type: "string" },
@@ -223,6 +225,7 @@ function buildPrompt(paper, source) {
 		"推荐等级只能使用 高 / 中 / 低；偏水风险只能使用 低 / 中 / 高；不要输出具体数字分数。",
 		"请判断论文是否值得读，是否可能是水文，并给出原因。重点从论文动机、方法、实验结果、Insight 四个角度写。",
 		"card_summary 用两到三句中文概括这篇文章，适合放在网页卡片上，不要分条，不要写 Motivation/Method/Result 等标签。",
+		"full_summary 用四到六句中文完整解释这篇文章在做什么、为什么重要、方法核心、主要实验信号和阅读价值，适合放在详情页顶部。",
 		"research_help 字段请写成 Insight：只说明对 agent planning / agentic RL / 多轮系统 / long-horizon reliability 的可迁移启发，不要出现 Junle 或 Junle research。",
 		"输出必须是严格 JSON，不要 Markdown，不要解释 JSON 之外的内容。",
 		"",
@@ -307,7 +310,7 @@ function runCodex(prompt) {
 }
 
 function normalizeAnswer(answer, source, modelName) {
-	const value = (key, fallback) => compact(answer[key] || fallback, 900);
+	const value = (key, fallback, maxLength = 900) => compact(answer[key] || fallback, maxLength);
 	const sourceEvidence = Array.isArray(answer.source_evidence) && answer.source_evidence.length
 		? answer.source_evidence.map((item) => compact(item, 180)).slice(0, 4)
 		: [source.note || "No explicit evidence returned."];
@@ -318,6 +321,7 @@ function normalizeAnswer(answer, source, modelName) {
 		research_help: value("research_help", "可作为 Daily Paper 候选，先检查对 agent planning、agentic RL 或多轮系统是否有可迁移启发。"),
 		insight: value("research_help", "可作为 Daily Paper 候选，先检查对 agent planning、agentic RL 或多轮系统是否有可迁移启发。"),
 		card_summary: value("card_summary", "这篇论文还没有自动生成短概括。"),
+		full_summary: value("full_summary", answer.card_summary || "这篇论文还没有自动生成完整中文概括。", 1400),
 		recommendation_level: ["高", "中", "低"].includes(answer.recommendation_level)
 			? answer.recommendation_level
 			: "中",
@@ -351,6 +355,8 @@ function applyAnalysis(paper, analysis) {
 		experiments: analysis.experiments,
 		research_help: analysis.research_help,
 		insight: analysis.insight || analysis.research_help,
+		summary: analysis.full_summary,
+		full_summary: analysis.full_summary,
 		card_summary: analysis.card_summary,
 		contribution: analysis.value_reason,
 		highlights: [

@@ -3389,7 +3389,18 @@ function bindGlassTopbar() {
 
 		function getPaperModalSummary(paper) {
 			const brief = paper.brief || {};
-			return compactText(brief.summary || paper.summary || getPaperCardSummary(paper), 720);
+			const analysis = paper.analysis || {};
+			return compactText(
+				analysis.full_summary ||
+					brief.full_summary ||
+					brief.summary_zh ||
+					analysis.card_summary ||
+					brief.card_summary ||
+					brief.summary ||
+					paper.summary ||
+					getPaperCardSummary(paper),
+				720
+			);
 		}
 
 		function formatAuthors(authors) {
@@ -3487,6 +3498,7 @@ function bindGlassTopbar() {
 			const arxivUrl = (paper.url || "").replace(/^http:\/\//, "https://");
 			const pdfUrl = getArxivPdfUrl(paper);
 			const recommendation = getRecommendation(paper);
+			const fullSummary = getPaperModalSummary(paper);
 
 			if (modalTitle) {
 				modalTitle.textContent = paper.title || "Untitled paper";
@@ -3522,8 +3534,8 @@ function bindGlassTopbar() {
 			}
 			if (modalExpanded) {
 				modalExpanded.innerHTML = "";
-				appendModalSection(modalExpanded, "Full Summary", brief.summary || paper.summary);
-				if (paper.summary && paper.summary !== brief.summary) {
+				appendModalSection(modalExpanded, "Full Summary", fullSummary);
+				if (paper.summary && paper.summary !== fullSummary) {
 					appendModalSection(modalExpanded, "Abstract", paper.summary);
 				}
 				appendModalSection(modalExpanded, "Contribution", brief.contribution || getContribution(paper));
@@ -3531,7 +3543,7 @@ function bindGlassTopbar() {
 				appendModalSection(
 					modalExpanded,
 					"Recommendation",
-					[recommendation.judgement, recommendation.reason].filter(Boolean).join(" ")
+					uniqueList([recommendation.judgement, recommendation.reason].filter(Boolean)).join(" ")
 				);
 			}
 			if (modalLimitations && modalLimitationsSection) {
