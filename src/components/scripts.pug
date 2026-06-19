@@ -3,6 +3,19 @@ script(src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2")
 script(src='js/realtime-config.js?v=20260618-realtime-auth-v2')
 
 script.
+	window.MathJax = {
+		tex: {
+			inlineMath: [["$", "$"], ["\\(", "\\)"]],
+			displayMath: [["$$", "$$"], ["\\[", "\\]"]],
+			processEscapes: true,
+		},
+		options: {
+			skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"],
+		},
+	}
+script(src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js")
+
+script.
 	window.$ = selector => document.querySelector(selector)
 	const getOriginalContent = selector => {
 		const node = $(selector)
@@ -38,7 +51,7 @@ script.
 		SUNRAYS_WEIGHT: 1.0,
 	}
 
-script(src='js/main.js?v=20260619-daily-paper-delete-v1')
+script(src='js/main.js?v=20260619-mathjax-notes-v1')
 
 if intro.background
 	script(src='js/background.js')

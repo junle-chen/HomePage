@@ -2714,6 +2714,24 @@
 	margin: 0 0 18px;
 }
 
+.note-lead mjx-container,
+.note-body mjx-container {
+	max-width: 100%;
+	color: inherit;
+}
+
+.note-body .math-block {
+	max-width: 100%;
+	margin: 22px 0;
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+
+.note-body .math-block mjx-container[display="true"] {
+	margin: 0;
+	min-width: max-content;
+}
+
 .note-body ul,
 .note-body ol {
 	display: grid;

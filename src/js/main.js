@@ -2170,12 +2170,22 @@ function bindGlassTopbar() {
 	}
 
 	function renderInlineMarkdown(text, baseUrl) {
+		const mathSnippets = [];
 		const codeSnippets = [];
-		let html = escapeHtml(text).replace(/`([^`]+)`/g, (_, code) => {
+		let html = String(text || "").replace(/`([^`]+)`/g, (_, code) => {
 			const token = `@@CODE_${codeSnippets.length}@@`;
 			codeSnippets.push(`<code>${escapeHtml(code)}</code>`);
 			return token;
 		});
+		html = html.replace(
+			/(\$\$[\s\S]+?\$\$|\\\[[\s\S]+?\\\]|\\\([\s\S]+?\\\)|\$[^\s$](?:\\.|[^$\\])*?\$)/g,
+			(match) => {
+				const token = `@@MATH_${mathSnippets.length}@@`;
+				mathSnippets.push(escapeHtml(match));
+				return token;
+			}
+		);
+		html = escapeHtml(html);
 		html = html.replace(
 			/!\[([^\]]*)\]\(([^)]+)\)/g,
 			(_, alt, url) =>
@@ -2189,10 +2199,52 @@ function bindGlassTopbar() {
 		html = html
 			.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
 			.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+		mathSnippets.forEach((snippet, index) => {
+			html = html.replace(`@@MATH_${index}@@`, snippet);
+		});
 		codeSnippets.forEach((snippet, index) => {
 			html = html.replace(`@@CODE_${index}@@`, snippet);
 		});
 		return html;
+	}
+
+	function renderStandaloneMath(line) {
+		const trimmed = String(line || "").trim();
+		if (!trimmed) {
+			return "";
+		}
+		if (/^\$\$[\s\S]+\$\$$/.test(trimmed) || /^\\\[[\s\S]+\\\]$/.test(trimmed)) {
+			return `<div class="math-block">${escapeHtml(trimmed)}</div>`;
+		}
+		if (/^\$(?!\$)[\s\S]+\$$/.test(trimmed) && /\\(?:begin|sum|frac|math|theta|left|right|log|mathbf|mathbb)|[_^{}]/.test(trimmed)) {
+			return `<div class="math-block">$$${escapeHtml(trimmed.slice(1, -1))}$$</div>`;
+		}
+		return "";
+	}
+
+	function typesetMath(container) {
+		if (!container || !window.MathJax) {
+			return;
+		}
+		const run = () => {
+			if (typeof window.MathJax.typesetClear === "function") {
+				window.MathJax.typesetClear([container]);
+			}
+			if (typeof window.MathJax.typesetPromise === "function") {
+				window.MathJax.typesetPromise([container]).catch(() => {});
+				return;
+			}
+			if (typeof window.MathJax.typeset === "function") {
+				try {
+					window.MathJax.typeset([container]);
+				} catch (error) {}
+			}
+		};
+		if (window.MathJax.startup && window.MathJax.startup.promise) {
+			window.MathJax.startup.promise.then(run).catch(() => {});
+			return;
+		}
+		run();
 	}
 
 	function markdownToHtml(markdown, baseUrl) {
@@ -2276,6 +2328,14 @@ function bindGlassTopbar() {
 				flushParagraph();
 				flushList();
 				flushTable();
+				return;
+			}
+			const standaloneMath = renderStandaloneMath(line);
+			if (standaloneMath) {
+				flushParagraph();
+				flushList();
+				flushTable();
+				html.push(standaloneMath);
 				return;
 			}
 			if (/^\|.+\|$/.test(line)) {
@@ -2509,6 +2569,7 @@ function bindGlassTopbar() {
 					const rendered = markdownToHtml(markdown, noteUrl);
 					body.innerHTML = rendered.html || `<p>${escapeHtml(card.dataset.excerpt || "")}</p>`;
 					renderOutline(rendered.headings);
+					typesetMath(reader);
 					loadGiscus(giscusHost, commentTerm);
 				})
 				.catch(() => {
@@ -2517,6 +2578,7 @@ function bindGlassTopbar() {
 					}
 					body.innerHTML = `<p>${escapeHtml(card.dataset.excerpt || "This note could not be loaded.")}</p>`;
 					renderOutline([]);
+					typesetMath(reader);
 					loadGiscus(giscusHost, commentTerm);
 				});
 

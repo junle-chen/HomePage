@@ -20,6 +20,7 @@
 - const memoCount = stats.memos || memos.length || 0
 - const resourceCount = railResources.length
 - const paperCount = stats.papers || paperItems.length || 0
+- const stripExcerptMath = value => String(value || '').replace(/\$\$[\s\S]*?(?:\$\$|$)/g, '').replace(/\$[^$]*(?:\$|$)/g, '').replace(/\\\[[\s\S]*?(?:\\\]|$)/g, '').replace(/\\\([\s\S]*?(?:\\\)|$)/g, '').replace(/\s+/g, ' ').trim()
 - const tagCounts = new Map()
 - notes.forEach(note => (note.tags || []).forEach(tag => tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1)))
 - const tags = Array.from(tagCounts.entries()).sort((a, b) => b[1] - a[1])
@@ -206,9 +207,10 @@
 							- const hasImage = Boolean(image)
 							- const noteId = `note-${index}`
 							- const noteTags = (note.tags || []).join('|')
-							- const readTime = Math.max(3, Math.ceil((note.excerpt || note.title || '').length / 120))
+							- const noteExcerpt = stripExcerptMath(note.excerpt || '')
+							- const readTime = Math.max(3, Math.ceil((noteExcerpt || note.title || '').length / 120))
 							article.note-card-shell(data-note-shell)
-								a.post-card.note-card(class=!hasImage ? "no-image" : null href=`#${noteId}` data-note-card data-note-open data-note-id=`${noteId}` data-note-key=`${note.url}` data-note-index=`${index}` data-note-url=`${note.url}` data-note-image=`${image}` data-note-archived=(note.archived || note.archive) ? "true" : "false" data-comment-term=`note:${note.url}` data-title=`${note.title}` data-tags=`${noteTags}` data-category=`${note.category || ''}` data-date=`${note.date || ''}` data-excerpt=`${note.excerpt || ''}` data-read-time=`${readTime}` style=hasImage ? `--card-image: url("${image}")` : null)
+								a.post-card.note-card(class=!hasImage ? "no-image" : null href=`#${noteId}` data-note-card data-note-open data-note-id=`${noteId}` data-note-key=`${note.url}` data-note-index=`${index}` data-note-url=`${note.url}` data-note-image=`${image}` data-note-archived=(note.archived || note.archive) ? "true" : "false" data-comment-term=`note:${note.url}` data-title=`${note.title}` data-tags=`${noteTags}` data-category=`${note.category || ''}` data-date=`${note.date || ''}` data-excerpt=`${noteExcerpt}` data-read-time=`${readTime}` style=hasImage ? `--card-image: url("${image}")` : null)
 									if hasImage
 										.post-art(aria-hidden="true")
 									.post-content
@@ -216,8 +218,8 @@
 											span #{note.date || "Undated"}
 										span #{note.category || "Note"}
 										h3 #{note.title}
-										if note.excerpt
-											p #{note.excerpt}
+										if noteExcerpt
+											p #{noteExcerpt}
 										else
 											p.muted Preserved Markdown note from the old site.
 										.post-footer
