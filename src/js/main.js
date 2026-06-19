@@ -2906,13 +2906,18 @@ function bindGlassTopbar() {
 
 		const SORT_STORAGE_KEY = "junle-homepage-daily-paper-sort";
 		const DAILY_STAR_STORAGE_KEY = "junle-homepage-daily-paper-stars";
+		const DAILY_DELETE_STORAGE_KEY = "junle-homepage-daily-paper-deleted-v1";
+		const DAILY_DELETE_PREFIX = "deleted:";
 		let allItems = [];
 		let selectedDate = "";
 		let selectedCategory = "";
 		let sortOrder = window.localStorage.getItem(SORT_STORAGE_KEY) || "desc";
 		let starredDailyKeys = loadDailyStarredKeys();
 		let remoteDailyStarredKeys = [];
+		let deletedDailyKeys = loadDailyDeletedKeys();
+		let remoteDailyDeletedKeys = [];
 		let currentDigestText = "";
+		let currentDailyData = null;
 		let currentModalItems = [];
 		let currentModalIndex = -1;
 
@@ -2977,7 +2982,9 @@ function bindGlassTopbar() {
 		function loadDailyStarredKeys() {
 			try {
 				const value = JSON.parse(window.localStorage.getItem(DAILY_STAR_STORAGE_KEY) || "[]");
-				return Array.isArray(value) ? value : [];
+				return Array.isArray(value)
+					? value.filter((key) => typeof key === "string" && key.indexOf(DAILY_DELETE_PREFIX) !== 0)
+					: [];
 			} catch (error) {
 				return [];
 			}
@@ -2993,6 +3000,89 @@ function bindGlassTopbar() {
 
 		function getDailyStarredKeys() {
 			return uniqueList(starredDailyKeys.concat(remoteDailyStarredKeys));
+		}
+
+		function loadDailyDeletedKeys() {
+			try {
+				const value = JSON.parse(window.localStorage.getItem(DAILY_DELETE_STORAGE_KEY) || "[]");
+				return Array.isArray(value) ? value.filter((key) => typeof key === "string") : [];
+			} catch (error) {
+				return [];
+			}
+		}
+
+		function saveDailyDeletedKeys() {
+			try {
+				window.localStorage.setItem(DAILY_DELETE_STORAGE_KEY, JSON.stringify(deletedDailyKeys));
+			} catch (error) {
+				// Delete state can still be carried by realtime when local storage is unavailable.
+			}
+		}
+
+		function getDailyDeleteReactionKey(key) {
+			return DAILY_DELETE_PREFIX + key;
+		}
+
+		function splitDailyReactionKeys(keys) {
+			const starred = [];
+			const deleted = [];
+			(keys || []).forEach((key) => {
+				if (typeof key !== "string") {
+					return;
+				}
+				if (key.indexOf(DAILY_DELETE_PREFIX) === 0) {
+					deleted.push(key.slice(DAILY_DELETE_PREFIX.length));
+				} else {
+					starred.push(key);
+				}
+			});
+			return {
+				starred: uniqueList(starred),
+				deleted: uniqueList(deleted),
+			};
+		}
+
+		function applyDailyReactionKeys(keys) {
+			const reactionKeys = splitDailyReactionKeys(keys || []);
+			remoteDailyStarredKeys = reactionKeys.starred;
+			remoteDailyDeletedKeys = reactionKeys.deleted;
+			renderDailyState();
+		}
+
+		function getDailyDeletedKeys() {
+			return uniqueList(deletedDailyKeys.concat(remoteDailyDeletedKeys));
+		}
+
+		function isDailyDeleted(paper) {
+			return getDailyDeletedKeys().indexOf(getPaperKey(paper)) !== -1;
+		}
+
+		function updateLocalDailyDeleteKey(key, deleted) {
+			if (deleted && deletedDailyKeys.indexOf(key) === -1) {
+				deletedDailyKeys = deletedDailyKeys.concat(key);
+			} else if (!deleted) {
+				deletedDailyKeys = deletedDailyKeys.filter((value) => value !== key);
+			}
+			saveDailyDeletedKeys();
+		}
+
+		function setDailyDeleted(paper, deleted) {
+			const key = getPaperKey(paper);
+			if (
+				window.JunleRealtime &&
+				window.JunleRealtime.isEnabled &&
+				window.JunleRealtime.isEnabled() &&
+				window.JunleRealtime.canWrite &&
+				window.JunleRealtime.canWrite()
+			) {
+				window.JunleRealtime.setReaction("daily_paper", getDailyDeleteReactionKey(key), deleted)
+					.catch(() => {
+						updateLocalDailyDeleteKey(key, deleted);
+						renderDailyState();
+					});
+				return;
+			}
+			updateLocalDailyDeleteKey(key, deleted);
 		}
 
 		function isDailyStarred(paper) {
@@ -3397,7 +3487,11 @@ function bindGlassTopbar() {
 		}
 
 		function getRelevantDailyItems() {
-			return allItems.filter(isDailyPaperRelevant);
+			return allItems.filter((paper) => isDailyPaperRelevant(paper) && !isDailyDeleted(paper));
+		}
+
+		function getDeletedDailyItems() {
+			return allItems.filter((paper) => isDailyPaperRelevant(paper) && isDailyDeleted(paper));
 		}
 
 		function getContribution(paper) {
@@ -3503,12 +3597,18 @@ function bindGlassTopbar() {
 			if (category === "__starred") {
 				return isDailyStarred(paper);
 			}
+			if (category === "__deleted") {
+				return isOwnerModeEnabled() && isDailyDeleted(paper);
+			}
 			const normalized = normalizeFilterValue(category);
 			return getPaperTags(paper).some((tag) => normalizeFilterValue(tag) === normalized);
 		}
 
 		function getDateFilteredItems() {
-			return getRelevantDailyItems().filter((paper) => !selectedDate || getPaperDate(paper) === selectedDate);
+			const sourceItems = selectedCategory === "__deleted" && isOwnerModeEnabled()
+				? getDeletedDailyItems()
+				: getRelevantDailyItems();
+			return sourceItems.filter((paper) => !selectedDate || getPaperDate(paper) === selectedDate);
 		}
 
 		function getFilteredItems() {
@@ -3531,7 +3631,10 @@ function bindGlassTopbar() {
 			if (!dailyFilterBar) {
 				return;
 			}
-			const sourceItems = getDateFilteredItems();
+			const sourceItems = getRelevantDailyItems()
+				.filter((paper) => !selectedDate || getPaperDate(paper) === selectedDate);
+			const deletedItems = getDeletedDailyItems()
+				.filter((paper) => !selectedDate || getPaperDate(paper) === selectedDate);
 			const counts = new Map();
 			sourceItems.forEach((paper) => {
 				getPaperTags(paper).forEach((tag) => {
@@ -3545,6 +3648,9 @@ function bindGlassTopbar() {
 					.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
 					.map(([name, count]) => ({ name, label: name, count })),
 			];
+			if (isOwnerModeEnabled() && deletedItems.length) {
+				options.splice(2, 0, { name: "__deleted", label: "Deleted", count: deletedItems.length });
+			}
 			if (selectedCategory && !options.some((option) => option.name === selectedCategory)) {
 				selectedCategory = "";
 			}
@@ -3928,10 +4034,10 @@ function bindGlassTopbar() {
 			const lowIds = Array.isArray(digest.low_priority) ? digest.low_priority : [];
 			const relevantItems = getRelevantDailyItems();
 			const topPapers = topIds.length
-				? topIds.map(getPaperById).filter((paper) => paper && isDailyPaperRelevant(paper))
+				? topIds.map(getPaperById).filter((paper) => paper && isDailyPaperRelevant(paper) && !isDailyDeleted(paper))
 				: relevantItems.slice().sort((a, b) => getRecommendation(b).score - getRecommendation(a).score).slice(0, 3);
 			const lowPapers = lowIds.length
-				? lowIds.map(getPaperById).filter((paper) => paper && isDailyPaperRelevant(paper))
+				? lowIds.map(getPaperById).filter((paper) => paper && isDailyPaperRelevant(paper) && !isDailyDeleted(paper))
 				: relevantItems.filter((paper) => getRecommendation(paper).waterRisk !== "低").slice(0, 3);
 
 			digestBox.innerHTML = "";
@@ -3963,6 +4069,26 @@ function bindGlassTopbar() {
 			columns.appendChild(createDigestList("最值得读的 3 篇", topPapers, "今天没有高相关新增论文。"));
 			columns.appendChild(createDigestList("暂不优先 / 可能偏水", lowPapers, "没有明显偏水候选。"));
 			digestBox.appendChild(columns);
+		}
+
+		function renderDailyDerivedViews() {
+			if (!currentDailyData) {
+				return;
+			}
+			const relevantItems = getRelevantDailyItems();
+			currentDigestText = buildDigestText(currentDailyData);
+			setEmpty(
+				empty,
+				"没有符合 long horizon / multi-turn / agentic rl / agent planning 的 Daily Paper。",
+				Boolean(relevantItems.length)
+			);
+			renderDigest(currentDailyData);
+			renderRail(relevantItems);
+		}
+
+		function renderDailyState() {
+			renderFull();
+			renderDailyDerivedViews();
 		}
 
 		function copyText(text) {
@@ -4049,6 +4175,21 @@ function bindGlassTopbar() {
 				});
 				actions.appendChild(starButton);
 				actions.appendChild(detailButton);
+				if (isOwnerModeEnabled()) {
+					const deleted = isDailyDeleted(paper);
+					const deleteButton = document.createElement("button");
+					deleteButton.type = "button";
+					deleteButton.className = deleted ? "paper-restore-button" : "paper-delete-button";
+					deleteButton.textContent = deleted ? "Restore" : "Delete";
+					deleteButton.setAttribute("aria-label", deleted ? "Restore daily paper" : "Delete daily paper");
+					deleteButton.addEventListener("click", (event) => {
+						event.preventDefault();
+						event.stopPropagation();
+						setDailyDeleted(paper, !deleted);
+						renderDailyState();
+					});
+					actions.appendChild(deleteButton);
+				}
 				top.appendChild(titleWrap);
 				top.appendChild(actions);
 
@@ -4152,30 +4293,35 @@ function bindGlassTopbar() {
 			});
 		});
 
-			if (dailyFilterBar) {
-				dailyFilterBar.addEventListener("click", (event) => {
-					const button = event.target.closest("[data-daily-paper-filter]");
-					if (!button) {
-						return;
+		if (dailyFilterBar) {
+			dailyFilterBar.addEventListener("click", (event) => {
+				const button = event.target.closest("[data-daily-paper-filter]");
+				if (!button) {
+					return;
 				}
 				const value = button.dataset.dailyPaperFilter || "";
 				selectedCategory = value === selectedCategory ? "" : value;
 				renderFull();
-				});
-			}
+			});
+		}
 
-			if (window.JunleRealtime) {
-				window.JunleRealtime.on("reactions:daily_paper", (keys) => {
-					remoteDailyStarredKeys = keys || [];
-					renderFull();
-				});
-				window.JunleRealtime.loadReactions("daily_paper").then((keys) => {
-					remoteDailyStarredKeys = keys || [];
-					renderFull();
-				});
+		if (window.JunleRealtime) {
+			window.JunleRealtime.on("reactions:daily_paper", (keys) => {
+				applyDailyReactionKeys(keys || []);
+			});
+			window.JunleRealtime.loadReactions("daily_paper").then((keys) => {
+				applyDailyReactionKeys(keys || []);
+			});
+		}
+		window.addEventListener("junle-owner-mode-change", renderDailyState);
+		window.addEventListener("storage", (event) => {
+			if (event.key === DAILY_DELETE_STORAGE_KEY || event.key === OWNER_STORAGE_KEY) {
+				deletedDailyKeys = loadDailyDeletedKeys();
+				renderDailyState();
 			}
+		});
 
-			window.openAcademicPaperModal = openPaperModal;
+		window.openAcademicPaperModal = openPaperModal;
 
 		modalCloseButtons.forEach((button) => {
 			button.addEventListener("click", closePaperModal);
@@ -4207,16 +4353,20 @@ function bindGlassTopbar() {
 			})
 			.then((data) => {
 				const items = data.items || [];
+				currentDailyData = data;
 				allItems = items.slice();
 				const relevantItems = getRelevantDailyItems();
 				currentDigestText = buildDigestText(data);
 				setUpdatedLabel(data);
 				if (!relevantItems.length) {
-					renderEmptyState("没有符合 long horizon / multi-turn / agentic rl / agent planning 的 Daily Paper。");
-					renderDigest(data);
-					return;
+					setEmpty(
+						empty,
+						"没有符合 long horizon / multi-turn / agentic rl / agent planning 的 Daily Paper。",
+						false
+					);
+				} else {
+					setEmpty(empty, "", true);
 				}
-				setEmpty(empty, "", true);
 				setEmpty(fullEmpty, "", true);
 				renderDigest(data);
 				renderRail(relevantItems);
